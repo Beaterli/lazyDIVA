@@ -37,13 +37,14 @@ def compute_loss(train_data):
     cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=relation, labels=train_data.relation)
     logpr_l = -tf.reduce_sum(cross_ent, axis=[1])
     logpl = log_normal_pdf(path, 0., 0.)
-    logql_r = log_normal_pdf(path, mean, logvar)
-    return -tf.reduce_mean(logpx_z + logpz - logqz_x)
+    ql_r = posterior.path_between(train_data.from_node, train_data.to_node, train_data.relation)
+    logql_r = log_normal_pdf(ql_r, 0., 0.)
+    return -tf.reduce_mean(logpr_l + logpl - logql_r)
 
 
-def compute_gradients(model, x):
+def compute_gradients(x):
     with tf.GradientTape() as tape:
-        loss = compute_loss(model, x)
+        loss = compute_loss(x)
     return tape.gradient(loss, model.trainable_variables), loss
 
 
@@ -57,7 +58,7 @@ def apply_gradients(optimizer, gradients, variables, global_step=None):
 for epoch in range(1, epochs + 1):
     start_time = time.time()
     for train_x in train_set:
-        gradients, loss = compute_gradients(model, train_x)
+        gradients, loss = compute_gradients(train_x)
         apply_gradients(optimizer, gradients, model.trainable_variables)
     end_time = time.time()
 
