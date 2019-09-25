@@ -85,14 +85,17 @@ class CVAE(tf.keras.Model):
             eps = tf.random_normal(shape=(100, self.latent_dim))
         return self.decode(eps, apply_sigmoid=True)
 
+    # 将某个样本图片编码为正态分布的均值与方差，进行降维?
     def encode(self, x):
         mean, logvar = tf.split(self.inference_net(x), num_or_size_splits=2, axis=1)
         return mean, logvar
 
+    # 从某个样本图片的均值与方差从标准正态随机一个潜变量出来
     def reparameterize(self, mean, logvar):
         eps = tf.random_normal(shape=mean.shape)
         return eps * tf.exp(logvar * .5) + mean
 
+    # 从潜变量还原样本图片
     def decode(self, z, apply_sigmoid=False):
         logits = self.generative_net(z)
         if apply_sigmoid:

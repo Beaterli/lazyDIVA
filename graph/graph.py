@@ -35,6 +35,10 @@ class Graph(object):
             res.add(intermediate)
         return list(res)
 
+    def random_edge_of(self, node):
+        import random
+        return random.choice(self.nodes[node])
+
     def __str__(self):
         string = ""
         for entity in self.nodes:

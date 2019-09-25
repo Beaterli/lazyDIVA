@@ -15,16 +15,17 @@ class LSTMFinder(tf.keras.Model):
         ])
 
     # prior/posterior, 通过relation区分
-    def path_between(self, from_node, to_node, relation=None):
+    def path_between(self, from_node, first_link, to_node, relation=None):
         step = 0
         path = []
-        current_link = from_node
+        current_node = from_node
+        input_vector = from_node + first_link
         state = self.history_stack.zero_state(self.lstm_units, dtype=tf.float32)
 
         # 最大搜索history_depth跳
         while step < self.history_depth:
             # 通过LSTM计算输出与状态
-            output, state = self.history_stack(current_link, state)
+            output, state = self.history_stack(input_vector, state)
 
             # 根据relation计算prior特征或posterior特征
             if relation is None:
@@ -33,7 +34,7 @@ class LSTMFinder(tf.keras.Model):
                 feature = self.mlp(state + relation)
 
             # 选择邻接矩阵
-            candidates = self.graph.get_links_from(current_link)
+            candidates = self.graph.get_links_from(current_node)
 
             # 计算点积
             choices = tf.keras.layers.dot(
@@ -50,7 +51,8 @@ class LSTMFinder(tf.keras.Model):
             if candidates[best_choice].to_node == to_node:
                 break
 
-            current_link = candidates[best_choice].to_node
+            current_node = candidates[best_choice].to_node
+            input_vector = current_node + candidates[best_choice].edge
             step = step + 1
 
         if path[step - 1].to_node != to_node:

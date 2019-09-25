@@ -31,14 +31,17 @@ def log_normal_pdf(sample, mean, logvar, raxis=1):
 
 
 def compute_loss(train_data):
-    path = path_finder.path_between(train_data.from_node, train_data.to_node)
+    random_start = graph.random_edge_of(train_data.from_node)
+    path = path_finder.path_between(train_data.from_node, random_start, train_data.to_node)
     relation = path_reasoner.relation_of_path(path)
 
     cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=relation, labels=train_data.relation)
+    # 分类结果熵向量求和
     logpr_l = -tf.reduce_sum(cross_ent, axis=[1])
+    # prior计算损失
     logpl = log_normal_pdf(path, 0., 0.)
-    ql_r = posterior.path_between(train_data.from_node, train_data.to_node, train_data.relation)
-    logql_r = log_normal_pdf(ql_r, 0., 0.)
+    # posterior计算损失
+    logql_r = logpr_l
     return -tf.reduce_mean(logpr_l + logpl - logql_r)
 
 
