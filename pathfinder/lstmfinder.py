@@ -2,8 +2,34 @@ import numpy as np
 import tensorflow as tf
 
 
+# 极其辣鸡的前n个查找算法
+def top_n_of_2d_choices(choices, n):
+    positions = []
+    for i in range(n):
+        max_choice = 0.0
+        max_x = -1
+        max_y = -1
+        for x, row in enumerate(choices):
+            for y, choice in enumerate(row):
+                if choice > max_choice and (x, y) not in positions:
+                    max_choice = choice
+                    max_x = x
+                    max_y = y
+        positions.append((max_x, max_y))
+    return positions
+
+
+# 测试前n个查找算法
+test_choices = [
+    [0.1, 0.6, 0.4],
+    [0.3, 0.5, 0.9],
+    [0.7, 0.8, 0.9]
+]
+print(top_n_of_2d_choices(test_choices, 5))
+
+
 class LSTMFinder(tf.keras.Model):
-    def __init__(self, graph, max_path_length, path_count):
+    def __init__(self, graph, max_path_length):
         self.graph = graph
         self.rnn_stack = {}
         self.selection_mlp = {}
@@ -21,7 +47,6 @@ class LSTMFinder(tf.keras.Model):
             tf.keras.layers.Dense(400, activation=tf.nn.relu),
             tf.keras.layers.Dense(400, activation=tf.nn.relu)
         ])
-        self.path_count = path_count
 
     def next_step_probabilities(self, history_stack_state, candidates, relation=None):
         # 根据relation计算prior特征或posterior特征
@@ -40,35 +65,50 @@ class LSTMFinder(tf.keras.Model):
         return probabilities
 
     # prior/posterior, 通过relation区分
-    def paths_between(self, from_node, to_node, relation=None):
+    # 还没有测试过，很可能有bug
+    def paths_between(self, from_id, to_id, width=5, relation=None):
         step = 0
-        paths = []
-        history_stack_states = []
-        self.history_stack.zero_state(self.lstm_units, dtype=tf.float32)
+        paths = [(from_id,)]
+        history_stack_states = [self.history_stack.zero_state(self.lstm_units, dtype=tf.float32)]
 
         # 最大搜索history_depth跳
         while step < self.history_depth:
-            # 选择邻接矩阵
-            candidates = self.graph.neighbors_of(current_node)
+            all_candidates = [] * len(paths)
+            all_probabilities = [] * len(paths)
+            updated_paths = []
+            updated_stack_states = []
 
-            # 根据概率采样最终选择
-            probabilities = self.next_step_probabilities(history_stack_states[0], candidates, relation)
-            best_choice = tf.distributions.Categorical(probs=probabilities).sample().eval()
+            for index, path in enumerate(paths):
+                # 跳过到达目的地的路径
+                if path[-1] == to_id:
+                    updated_paths.append(path)
+                    updated_stack_states.append(history_stack_states[index])
+                    continue
 
-            paths[0] += candidates[best_choice]
-            if candidates[best_choice].to_id == to_node:
-                break
+                # 选择邻接矩阵
+                candidates = self.graph.neighbors_of(path[-1])
+                all_candidates[index] = candidates
 
-            current_node = candidates[best_choice].to_id
-            input_vector = np.concatenate(
-                (self.graph.vec_of_ent(current_node) + self.graph.vec_of_rel(candidates[best_choice].rel_id))
-            )
+                # 根据概率采样最终选择
+                probabilities = self.next_step_probabilities(history_stack_states[index], candidates, relation)
+                all_probabilities[index] = probabilities
+
+            top_choices_index = top_n_of_2d_choices(all_probabilities, width - len(updated_paths))
+            for _, index in enumerate(top_choices_index):
+                path = paths[index[0]]
+                next_step = all_candidates[index[0]][index[1]]
+                updated_paths.append(path + (next_step.rel_id, next_step.to_id))
+                updated_stack_states.append(history_stack_states[index[0]])
+
+                input_vector = np.concatenate(
+                    (self.graph.vec_of_ent(next_step.rel_id) + self.graph.vec_of_rel(next_step.to_id))
+                )
+
+                # 通过LSTM计算输出与状态
+                _, updated_stack_states[-1] = self.history_stack(input_vector, updated_stack_states[-1])
+
+            paths = updated_paths
+            history_stack_states = updated_stack_states
             step = step + 1
 
-            # 通过LSTM计算输出与状态
-            _, history_stack_states[0] = self.history_stack(input_vector, history_stack_states[0])
-
-        if paths[0][step - 1].to_node != to_node:
-            return None
-        else:
-            return paths[0]
+        return paths
