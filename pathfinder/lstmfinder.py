@@ -89,22 +89,23 @@ class LSTMFinder(tf.keras.Model):
                 candidates = self.graph.neighbors_of(path[-1])
                 all_candidates[index] = candidates
 
-                # 根据概率采样最终选择
+                # 计算邻接节点的概率
                 probabilities = self.next_step_probabilities(history_stack_states[index], candidates, relation)
                 all_probabilities[index] = probabilities
 
+            # 将已到达终点的路径以外的候选路径筛选出来
             top_choices_index = top_n_of_2d_choices(all_probabilities, width - len(updated_paths))
             for _, index in enumerate(top_choices_index):
                 path = paths[index[0]]
                 next_step = all_candidates[index[0]][index[1]]
+                # 添加新的top n的路径信息
                 updated_paths.append(path + (next_step.rel_id, next_step.to_id))
                 updated_stack_states.append(history_stack_states[index[0]])
 
+                # 计算新的top n的LSTM状态
                 input_vector = np.concatenate(
                     (self.graph.vec_of_ent(next_step.rel_id) + self.graph.vec_of_rel(next_step.to_id))
                 )
-
-                # 通过LSTM计算输出与状态
                 _, updated_stack_states[-1] = self.history_stack(input_vector, updated_stack_states[-1])
 
             paths = updated_paths
