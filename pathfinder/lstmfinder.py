@@ -30,6 +30,7 @@ print(top_n_of_2d_choices(test_choices, 5))
 
 class LSTMFinder(tf.keras.Model):
     def __init__(self, graph, max_path_length):
+        super(LSTMFinder, self).__init__()
         self.graph = graph
         self.rnn_stack = {}
         self.selection_mlp = {}
@@ -69,7 +70,7 @@ class LSTMFinder(tf.keras.Model):
     def paths_between(self, from_id, to_id, relation=None, width=5):
         step = 0
         paths = [(from_id,)]
-        history_stack_states = [self.history_stack.zero_state(self.lstm_units, dtype=tf.float32)]
+        history_stack_states = [self.history_stack.zero_state(self.history_stack, dtype=tf.float32)]
 
         # 最大搜索history_depth跳
         while step < self.history_depth:

@@ -4,6 +4,7 @@ import tensorflow as tf
 
 class CNNReasoner(tf.keras.Model):
     def __init__(self, graph, input_width, max_path_length):
+        super(CNNReasoner, self).__init__()
         self.graph = graph
         self.input_width = input_width
         self.max_path_length = max_path_length
@@ -27,9 +28,8 @@ class CNNReasoner(tf.keras.Model):
         ]
         self.classifier = tf.keras.Sequential([
             tf.keras.layers.InputLayer(input_shape=(384, 1)),
-            tf.keras.layers.Dense(400, activation=tf.nn.softmax),
-            tf.keras.layers.Dense(400, activation=tf.nn.softmax),
-            tf.keras.layers.Dense(1, activation=tf.nn.softmax),
+            tf.keras.layers.Dense(400, activation=tf.nn.relu),
+            tf.keras.layers.Dense(2, activation=tf.nn.softmax),
         ])
 
     # likelihood
