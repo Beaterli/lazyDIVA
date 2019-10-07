@@ -66,7 +66,7 @@ class LSTMFinder(tf.keras.Model):
 
     # prior/posterior, 通过relation区分
     # 还没有测试过，很可能有bug
-    def paths_between(self, from_id, to_id, width=5, relation=None):
+    def paths_between(self, from_id, to_id, relation=None, width=5):
         step = 0
         paths = [(from_id,)]
         history_stack_states = [self.history_stack.zero_state(self.lstm_units, dtype=tf.float32)]

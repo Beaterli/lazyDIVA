@@ -1,20 +1,21 @@
 from __future__ import absolute_import, division, print_function
 
+import time
+
+import numpy as np
 # Import TensorFlow >= 1.9 and enable eager execution
 import tensorflow as tf
+
+from graph.graph import Graph
+from pathfinder.lstmfinder import LSTMFinder
+from pathreasoner.cnn_reasoner import CNNReasoner
 
 tfe = tf.contrib.eager
 tf.enable_eager_execution()
 
-import time
-import numpy as np
-from pathreasoner.cnn_reasoner import CNNReasoner
-from pathfinder.lstmfinder import LSTMFinder
-from graph.graph import Graph
-
-epochs = 5
+epoch = 10
 path_width = 400
-task = 'concept_musicsong_jordan'
+task = 'concept:athletehomestadium'
 graph = Graph('graph.db')
 graph.prohibit_relation(task)
 
@@ -32,8 +33,9 @@ def log_normal_pdf(sample, mean, logvar, raxis=1):
         -.5 * ((sample - mean) ** 2. * tf.exp(-logvar) + logvar + log2pi),
         axis=raxis)
 
-def reasoner_loss(relation, label):
-    cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=relation, labels=label)
+
+def reasoner_loss(relation, expected_label):
+    cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=relation, labels=expected_label)
     # 分类结果熵向量求和
     return -tf.reduce_sum(cross_ent, axis=[1])
 
@@ -67,24 +69,58 @@ def prior_update(prior_loss):
         optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
 
 
-for epoch in range(1, epochs + 1):
-    start_time = time.time()
-    for train_x in train_set:
-        paths = []
-        for i in range(1, 20):
-            paths.append(path_finder.path_between(train_x.from_node, train_x.to_node))
-        if epoch % 3 == 0:
-            for path in paths:
+train_samples = graph.train_samples_of(task)
+test_samples = graph.test_samples_of(task)
+for i in range(epoch):
+    print('epoch: {} started!'.format(i))
+    for episode in train_samples:
+        start_time = time.time()
+        rel_emb = np.zeros(200)
+        label = 0
+        if episode['type'] == '+':
+            rel_emb = graph.vec_of_rel(task)
+            label = 1
 
+        # 从posterior rollout K个路径
+        paths = path_finder.paths_between(episode['from_id'], episode['to_id'], rel_emb, 20)
 
-    end_time = time.time()
+        # Monte-Carlo REINFORCE奖励计算
+        log_pr = 0.0
+        for path in paths:
+            log_pr += reasoner_loss(path_reasoner.relation_of_path(path), label)
+        log_pr = log_pr / len(paths)
 
-    if epoch % 1 == 0:
-        loss = tfe.metrics.Mean()
-        for test_x in test_dataset:
-            loss(compute_loss(model, test_x))
-        elbo = -loss.result()
-        print('Epoch: {}, Test set ELBO: {}, '
-              'time elapse for current epoch {}'.format(epoch,
-                                                        elbo,
-                                                        end_time - start_time))
+        # 按照posterior->likelihood->prior的顺序更新
+        if episode % 3 == 0:
+            posterior_update(log_pr)
+        elif episode % 3 == 1:
+            reasoner_update(log_pr)
+        else:
+            prior_paths = path_finder.paths_between(episode['from_id'], episode['to_id'], 20)
+            prior_update(divergence_loss(prior_paths, paths))
+
+        end_time = time.time()
+        print('time for an episode: {}'.format(end_time - start_time))
+
+    # 测试每一轮的训练效果
+    loss = tfe.metrics.Mean()
+    for episode in test_samples:
+        label = 0
+        if episode['type'] == '+':
+            label = 1
+
+        # beam search 5条路径
+        paths = path_finder.paths_between(episode['from_id'], episode['to_id'], 5)
+        min_loss = 9999.9
+        # 取误差最小的1条
+        for path in paths:
+            loss = -reasoner_loss(path_reasoner.relation_of_path(path), label)
+            if loss < min_loss:
+                min_loss = loss
+
+        loss(min_loss)
+    avg_loss = loss.result()
+
+    print('epoch: {} finished! average loss: {}'.format(i, avg_loss))
+
+print('finished!')
