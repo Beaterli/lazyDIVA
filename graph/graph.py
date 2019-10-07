@@ -14,18 +14,22 @@ class Graph(object):
         for row in self.conn.execute('''select count(eid) from entities'''):
             ent_count = row[0]
         self.entEmb = [np.array] * ent_count
+        self.entName = ['unknown'] * ent_count
         print('loading {} entities...'.format(ent_count))
-        for row in self.conn.execute('''select eid, emb from entities''').fetchall():
+        for row in self.conn.execute('''select eid, emb, entity from entities''').fetchall():
             self.entEmb[row[0]] = np.genfromtxt(StringIO(row[1]))
+            self.entName[row[0]] = row[2]
         print('entity embedding load complete!')
 
         rel_count = 0
         for row in self.conn.execute('''select count(rid) from relations'''):
             rel_count = row[0]
         self.relEmb = [np.array] * rel_count
+        self.relName = ['unknown'] * rel_count
         print('loading {} relations...'.format(rel_count))
-        for row in self.conn.execute('''select rid, emb from relations''').fetchall():
+        for row in self.conn.execute('''select rid, emb, relation from relations''').fetchall():
             self.relEmb[row[0]] = (np.genfromtxt(StringIO(row[1])))
+            self.relName[row[0]] = row[2]
         print('relation embedding load complete!')
 
         self.prohibits = []
@@ -36,6 +40,24 @@ class Graph(object):
         for row in self.conn.execute('''select from_id, rid, to_id from graph''').fetchall():
             self.neighbors[row[0]].append(Link(row[1], row[2]))
         print('graph load complete!')
+
+    def samples_of(self, relation_text, stage):
+        samples = []
+        for row in self.conn.execute('''select from_id, to_id, "type" from samples 
+            where rid = (select rid from relations where relation = ?) and stage = ?''',
+                                     (relation_text, stage)):
+            samples.append({
+                'from_id': row[0],
+                'to_id': row[1],
+                'type': row[2]
+            })
+        return samples
+
+    def train_samples_of(self, relation_text):
+        return self.samples_of(relation_text, "train")
+
+    def test_samples_of(self, relation_text):
+        return self.samples_of(relation_text, "test")
 
     def prohibit_relation(self, relation_text):
         self.prohibits.clear()

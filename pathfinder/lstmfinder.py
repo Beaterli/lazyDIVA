@@ -102,7 +102,7 @@ class LSTMFinder(tf.keras.Model):
                 updated_paths.append(path + (next_step.rel_id, next_step.to_id))
                 updated_stack_states.append(history_stack_states[index[0]])
 
-                # 计算新的top n的LSTM状态
+                # 计算新的top n的LSTM 状态
                 input_vector = np.concatenate(
                     (self.graph.vec_of_ent(next_step.rel_id) + self.graph.vec_of_rel(next_step.to_id))
                 )

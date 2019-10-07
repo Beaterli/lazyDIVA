@@ -21,28 +21,16 @@ graph.prohibit_relation(task)
 train_set = []
 test_set = []
 
-path_finder = LSTMFinder(graph=graph, max_path_length=3)
-path_reasoner = CNNReasoner(400, 3)
+path_finder = LSTMFinder(graph=graph, max_path_length=5)
+path_reasoner = CNNReasoner(400, 3, 3)
 
 
+# 使用正态分布计算logP与logQ，不一定对
 def log_normal_pdf(sample, mean, logvar, raxis=1):
     log2pi = tf.log(2. * np.pi)
     return tf.reduce_sum(
         -.5 * ((sample - mean) ** 2. * tf.exp(-logvar) + logvar + log2pi),
         axis=raxis)
-
-
-def compute_loss(train_data):
-    random_start = graph.random_edge_of(train_data.from_node)
-    path = path_finder.path_between(train_data.from_node, random_start, train_data.to_node)
-    relation = path_reasoner.relation_of_path(path)
-
-    cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=relation, labels=train_data.relation)
-    # 分类结果熵向量求和
-    logpr_l = -tf.reduce_sum(cross_ent, axis=[1])
-
-    return -tf.reduce_mean(logpr_l + logpl - logql_r)
-
 
 def reasoner_loss(relation, label):
     cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=relation, labels=label)
