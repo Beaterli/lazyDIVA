@@ -13,24 +13,12 @@ class Graph(object):
         ent_count = 0
         for row in self.conn.execute('''select count(eid) from entities'''):
             ent_count = row[0]
-        self.entEmb = [np.array] * ent_count
-        self.entName = ['unknown'] * ent_count
-        print('loading {} entities...'.format(ent_count))
-        for row in self.conn.execute('''select eid, emb, entity from entities''').fetchall():
-            self.entEmb[row[0]] = np.genfromtxt(StringIO(row[1]))
-            self.entName[row[0]] = row[2]
-        print('entity embedding load complete!')
+        self.entEmb = [0] * ent_count
 
         rel_count = 0
         for row in self.conn.execute('''select count(rid) from relations'''):
             rel_count = row[0]
-        self.relEmb = [np.array] * rel_count
-        self.relName = ['unknown'] * rel_count
-        print('loading {} relations...'.format(rel_count))
-        for row in self.conn.execute('''select rid, emb, relation from relations''').fetchall():
-            self.relEmb[row[0]] = (np.genfromtxt(StringIO(row[1])))
-            self.relName[row[0]] = row[2]
-        print('relation embedding load complete!')
+        self.relEmb = [0] * rel_count
 
         self.prohibits = []
 
@@ -73,10 +61,22 @@ class Graph(object):
         return neighbors
 
     def vec_of_ent(self, ent_id):
+        if self.entEmb[ent_id] == 0:
+            for row in self.conn.execute('''select emb from entities where eid = {}'''.format(ent_id)).fetchall():
+                self.entEmb[ent_id] = np.genfromtxt(StringIO(row[0]))
         return self.entEmb[ent_id]
 
     def vec_of_rel(self, rel_id):
+        if self.relEmb[rel_id] == 0:
+            for row in self.conn.execute('''select emb from relations where rid = {}'''.format(rel_id)).fetchall():
+                self.relEmb[rel_id] = (np.genfromtxt(StringIO(row[0])))
         return self.relEmb[rel_id]
+
+    def vec_of_rel_name(self, rel_name):
+        vec = np.zeros(200)
+        for row in self.conn.execute('''select emb from relations where relation = ?''', rel_name):
+            vec = np.genfromtxt(StringIO(row[0]))
+        return vec
 
     def random_nodes_between(self, from_node_id, to_node_id, num):
         import random

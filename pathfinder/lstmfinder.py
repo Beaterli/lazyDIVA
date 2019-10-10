@@ -29,36 +29,52 @@ print(top_n_of_2d_choices(test_choices, 5))
 
 
 class LSTMFinder(tf.keras.Model):
-    def __init__(self, graph, max_path_length):
+    def __init__(self, graph, emb_size, max_path_length):
         super(LSTMFinder, self).__init__()
         self.graph = graph
         self.rnn_stack = {}
         self.selection_mlp = {}
         self.history_depth = max_path_length
-        self.prior_embedding_size = 2 * 200
-        self.posterior_embedding_size = 3 * 200
-        self.history_stack = tf.contrib.rnn.LSTMBlockCell(200, forget_bias=0.0)
+        self.emb_size = emb_size
+        self.history_stack = tf.keras.layers.LSTM(emb_size)
         self.prior_mlp = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=self.prior_embedding_size),
-            tf.keras.layers.Dense(400, activation=tf.nn.relu),
-            tf.keras.layers.Dense(400, activation=tf.nn.relu)
+            tf.keras.layers.InputLayer(input_shape=(1, 2 * emb_size)),
+            tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu),
+            tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu)
         ])
         self.posterior_mlp = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=self.posterior_embedding_size),
-            tf.keras.layers.Dense(400, activation=tf.nn.relu),
-            tf.keras.layers.Dense(400, activation=tf.nn.relu)
+            tf.keras.layers.InputLayer(input_shape=(1, 3 * emb_size)),
+            tf.keras.layers.Dense(3 * emb_size, activation=tf.nn.relu),
+            tf.keras.layers.Dense(3 * emb_size, activation=tf.nn.relu)
         ])
 
-    def next_step_probabilities(self, history_stack_state, candidates, relation=None):
+    def next_step_probabilities(self, ent_enb, history_stack_state, candidates, relation=None):
         # 根据relation计算prior特征或posterior特征
+
         if relation is None:
-            feature = self.prior_mlp(history_stack_state)
+            feature = self.prior_mlp(
+                np.concatenate((ent_enb, history_stack_state)))
         else:
-            feature = self.posterior_mlp(history_stack_state + relation)
+            feature = self.posterior_mlp(
+                np.expand_dims(
+                    np.concatenate((ent_enb, history_stack_state, relation)),
+                    axis=0
+                )
+            )
+
+        candidates_emb = []
+        for candidate in candidates:
+            candidates_emb.append(
+                np.concatenate((
+                    self.graph.vec_of_rel(candidate.rel_id),
+                    self.graph.vec_of_ent(candidate.to_id)
+                ))
+            )
 
         # 计算点积
         choices = tf.keras.layers.dot(
-            [candidates, feature]
+            [candidates, feature],
+            axes=0
         )
 
         # 计算选择概率
@@ -70,12 +86,13 @@ class LSTMFinder(tf.keras.Model):
     def paths_between(self, from_id, to_id, relation=None, width=5):
         step = 0
         paths = [(from_id,)]
-        history_stack_states = [self.history_stack.zero_state(self.history_stack, dtype=tf.float32)]
+        self.history_stack.get_initial_state(inputs=np.zeros(self.emb_size))
+        history_stack_states = [np.zeros(self.emb_size)]
 
         # 最大搜索history_depth跳
         while step < self.history_depth:
-            all_candidates = [] * len(paths)
-            all_probabilities = [] * len(paths)
+            all_candidates = [[]] * len(paths)
+            all_probabilities = [[]] * len(paths)
             updated_paths = []
             updated_stack_states = []
 
@@ -91,7 +108,12 @@ class LSTMFinder(tf.keras.Model):
                 all_candidates[index] = candidates
 
                 # 计算邻接节点的概率
-                probabilities = self.next_step_probabilities(history_stack_states[index], candidates, relation)
+                probabilities = self.next_step_probabilities(
+                    self.graph.vec_of_ent(path[-1]),
+                    history_stack_states[index],
+                    candidates,
+                    relation
+                )
                 all_probabilities[index] = probabilities
 
             # 将已到达终点的路径以外的候选路径筛选出来
@@ -105,9 +127,9 @@ class LSTMFinder(tf.keras.Model):
 
                 # 计算新的top n的LSTM 状态
                 input_vector = np.concatenate(
-                    (self.graph.vec_of_ent(next_step.rel_id) + self.graph.vec_of_rel(next_step.to_id))
+                    (self.graph.vec_of_rel(next_step.rel_id) + self.graph.vec_of_ent(next_step.to_id))
                 )
-                _, updated_stack_states[-1] = self.history_stack(input_vector, updated_stack_states[-1])
+                _, updated_stack_states[-1] = self.history_stack(inputs=input_vector, states=updated_stack_states[-1])
 
             paths = updated_paths
             history_stack_states = updated_stack_states

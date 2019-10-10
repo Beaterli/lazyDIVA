@@ -14,7 +14,6 @@ tfe = tf.contrib.eager
 tf.enable_eager_execution()
 
 epoch = 10
-path_width = 400
 task = 'concept:athletehomestadium'
 graph = Graph('graph.db')
 graph.prohibit_relation(task)
@@ -22,8 +21,10 @@ graph.prohibit_relation(task)
 train_set = []
 test_set = []
 
-path_finder = LSTMFinder(graph=graph, max_path_length=5)
-path_reasoner = CNNReasoner(400, 3, 3)
+path_finder = LSTMFinder(graph=graph, emb_size=100, max_path_length=5)
+path_reasoner = CNNReasoner(200, 3, 3)
+
+emb_size = 100
 
 
 # 使用正态分布计算logP与logQ，不一定对
@@ -75,10 +76,10 @@ for i in range(epoch):
     print('epoch: {} started!'.format(i))
     for episode in train_samples:
         start_time = time.time()
-        rel_emb = np.zeros(200)
         label = 0
+        rel_emb = np.zeros(emb_size)
         if episode['type'] == '+':
-            rel_emb = graph.vec_of_rel(task)
+            rel_emb = graph.vec_of_rel_name(task)
             label = 1
 
         # 从posterior rollout K个路径
