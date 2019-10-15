@@ -45,7 +45,7 @@ class LSTMFinder(tf.keras.Model):
         self.posterior_mlp = tf.keras.Sequential([
             tf.keras.layers.InputLayer(input_shape=(1, 3 * emb_size)),
             tf.keras.layers.Dense(3 * emb_size, activation=tf.nn.relu),
-            tf.keras.layers.Dense(3 * emb_size, activation=tf.nn.relu)
+            tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu)
         ])
 
     def next_step_probabilities(self, ent_enb, history_stack_state, candidates, relation=None):
@@ -62,24 +62,23 @@ class LSTMFinder(tf.keras.Model):
                 )
             )
 
-        candidates_emb = []
+        emb_list = []
         for candidate in candidates:
-            candidates_emb.append(
-                np.concatenate((
-                    self.graph.vec_of_rel(candidate.rel_id),
-                    self.graph.vec_of_ent(candidate.to_id)
-                ))
-            )
+            emb_list.append(np.concatenate((
+                self.graph.vec_of_rel(candidate.rel_id),
+                self.graph.vec_of_ent(candidate.to_id)
+            )))
+        candidates_emb = np.array(emb_list)
 
         # 计算点积
         choices = tf.keras.layers.dot(
-            [candidates, feature],
-            axes=0
+            [candidates_emb, feature],
+            axes=1
         )
 
         # 计算选择概率
-        probabilities = tf.nn.softmax(choices)
-        return probabilities
+        probabilities = tf.keras.activations.softmax(tf.reshape(choices, [1, len(candidates)]))
+        return probabilities[0]
 
     # prior/posterior, 通过relation区分
     # 还没有测试过，很可能有bug
@@ -127,7 +126,7 @@ class LSTMFinder(tf.keras.Model):
 
                 # 计算新的top n的LSTM 状态
                 input_vector = np.concatenate(
-                    (self.graph.vec_of_rel(next_step.rel_id) + self.graph.vec_of_ent(next_step.to_id))
+                    (self.graph.vec_of_rel(next_step.rel_id), self.graph.vec_of_ent(next_step.to_id))
                 )
                 _, updated_stack_states[-1] = self.history_stack(inputs=input_vector, states=updated_stack_states[-1])
 

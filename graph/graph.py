@@ -13,12 +13,12 @@ class Graph(object):
         ent_count = 0
         for row in self.conn.execute('''select count(eid) from entities'''):
             ent_count = row[0]
-        self.entEmb = [0] * ent_count
+        self.entEmb = [np.zeros(1)] * ent_count
 
         rel_count = 0
         for row in self.conn.execute('''select count(rid) from relations'''):
             rel_count = row[0]
-        self.relEmb = [0] * rel_count
+        self.relEmb = [np.zeros(1)] * rel_count
 
         self.prohibits = []
 
@@ -61,21 +61,21 @@ class Graph(object):
         return neighbors
 
     def vec_of_ent(self, ent_id):
-        if self.entEmb[ent_id] == 0:
+        if self.entEmb[ent_id].size == 1:
             for row in self.conn.execute('''select emb from entities where eid = {}'''.format(ent_id)).fetchall():
-                self.entEmb[ent_id] = np.genfromtxt(StringIO(row[0]))
+                self.entEmb[ent_id] = np.genfromtxt(StringIO(row[0]), dtype="f4")
         return self.entEmb[ent_id]
 
     def vec_of_rel(self, rel_id):
-        if self.relEmb[rel_id] == 0:
+        if self.relEmb[rel_id].size == 1:
             for row in self.conn.execute('''select emb from relations where rid = {}'''.format(rel_id)).fetchall():
-                self.relEmb[rel_id] = (np.genfromtxt(StringIO(row[0])))
+                self.relEmb[rel_id] = np.genfromtxt(StringIO(row[0]), dtype="f4")
         return self.relEmb[rel_id]
 
     def vec_of_rel_name(self, rel_name):
         vec = np.zeros(200)
         for row in self.conn.execute('''select emb from relations where relation = ?''', rel_name):
-            vec = np.genfromtxt(StringIO(row[0]))
+            vec = np.genfromtxt(StringIO(row[0]), dtype="f4")
         return vec
 
     def random_nodes_between(self, from_node_id, to_node_id, num):
@@ -113,6 +113,6 @@ class Link(object):
         self.to_id = to_id
 
     def __str__(self):
-        return " {} -> {}".format(self.rel_id, self.to_id)
+        return "{} -> {}".format(self.rel_id, self.to_id)
 
     __repr__ = __str__
