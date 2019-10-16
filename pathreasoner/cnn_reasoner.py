@@ -35,10 +35,10 @@ class CNNReasoner(tf.keras.Model):
     # likelihood
     def relation_of_path(self, path):
         # 输入
-        input_mat = np.zeros(self.max_path_length, self.input_width)
-        for index, step in enumerate(path):
-            input_mat[index] = np.concatenate(self.graph.vec_of_rel(step.rel_id), self.graph.vec_of_ent(step.to_id))
-        cnn_input = self.input_layer(input_mat)
+        input_mat = []
+        for i in range(1, len(path), 2):
+            input_mat.append(np.concatenate((self.graph.vec_of_rel(path[i]), self.graph.vec_of_ent(path[i + 1]))))
+        cnn_input = np.expand_dims(np.expand_dims(np.array(input_mat), axis=0), axis=0)
 
         # 计算特征
         concat_feature = np.concatenate(

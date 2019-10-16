@@ -22,7 +22,7 @@ train_set = []
 test_set = []
 
 path_finder = LSTMFinder(graph=graph, emb_size=100, max_path_length=5)
-path_reasoner = CNNReasoner(200, 3, 3)
+path_reasoner = CNNReasoner(graph=graph, input_width=200, max_path_length=3)
 
 emb_size = 100
 
@@ -84,6 +84,7 @@ for i in range(epoch):
 
         # 从posterior rollout K个路径
         paths = path_finder.paths_between(episode['from_id'], episode['to_id'], rel_emb, 20)
+        print("Paths: " + str(paths))
 
         # Monte-Carlo REINFORCE奖励计算
         log_pr = 0.0
