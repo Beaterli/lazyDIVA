@@ -99,6 +99,7 @@ class LSTMFinder(tf.keras.Model):
         # [0]是hidden state, [1]是carry state
         initial_state = self.history_stack.get_initial_state(inputs=np.expand_dims(initial_input, axis=0))
         history_stack_states = [(initial_input, initial_state[0], initial_state[1])]
+        trainable_tensors = [initial_state[0]]
 
         # 最大搜索history_depth跳
         while step < self.history_depth:
@@ -107,6 +108,7 @@ class LSTMFinder(tf.keras.Model):
             updated_paths = []
             updated_stack_states = []
             updated_ent_of_paths = []
+            updated_trainable_tensors = []
 
             for index, path in enumerate(paths):
                 # 跳过到达目的地的路径
@@ -114,6 +116,7 @@ class LSTMFinder(tf.keras.Model):
                     updated_paths.append(path)
                     updated_stack_states.append(history_stack_states[index])
                     updated_ent_of_paths.append(ent_of_paths[index])
+                    updated_trainable_tensors.append(trainable_tensors[index])
                     continue
 
                 # 选择邻接矩阵
@@ -147,6 +150,7 @@ class LSTMFinder(tf.keras.Model):
                 updated_ent_of_paths.append(ent_of_paths[index[0]].copy())
                 updated_ent_of_paths[-1].add(next_step.to_id)
                 updated_stack_states.append(history_stack_states[index[0]])
+                updated_trainable_tensors.append(all_probabilities[index[0]])
 
                 # 计算新的top n的LSTM 状态
                 input_vector = np.concatenate(
@@ -165,4 +169,4 @@ class LSTMFinder(tf.keras.Model):
             ent_of_paths = updated_ent_of_paths
             step = step + 1
 
-        return paths
+        return paths, trainable_tensors

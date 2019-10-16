@@ -144,6 +144,7 @@ num_examples_to_generate = 16
 random_vector_for_generation = tf.random_normal(
     shape=[num_examples_to_generate, latent_dim])
 model = CVAE(latent_dim)
+model.summary()
 
 
 def generate_and_save_images(model, epoch, test_input):

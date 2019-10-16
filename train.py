@@ -23,6 +23,9 @@ test_set = []
 
 path_finder = LSTMFinder(graph=graph, emb_size=100, max_path_length=5)
 path_reasoner = CNNReasoner(graph=graph, input_width=200, max_path_length=3)
+variables = path_finder.trainable_variables + path_reasoner.trainable_variables
+# 最终奖励值倒推时的递减系数
+reward_param = 0.8
 
 emb_size = 100
 
@@ -38,7 +41,7 @@ def log_normal_pdf(sample, mean, logvar, raxis=1):
 def reasoner_loss(relation, expected_label):
     cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=relation, labels=expected_label)
     # 分类结果熵向量求和
-    return -tf.reduce_sum(cross_ent, axis=[1])
+    return -tf.reduce_sum(cross_ent, axis=[0])
 
 
 def divergence_loss(prior_path, posterior_path):
@@ -52,54 +55,62 @@ def divergence_loss(prior_path, posterior_path):
 optimizer = tf.train.AdamOptimizer(1e-4)
 
 
-def reasoner_update(reason_loss):
-    with tf.GradientTape() as tape:
-        gradients = tape.gradient(reason_loss, path_reasoner.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, path_reasoner.trainable_variables))
+def reasoner_update(reason_loss, tape):
+    gradients = tape.gradient(reason_loss, variables)
+    optimizer.apply_gradients(zip(gradients, path_reasoner.trainable_variables))
 
 
-def posterior_update(posterior_loss):
-    with tf.GradientTape() as tape:
-        gradients = tape.gradient(posterior_loss, path_finder.trainable_variables)
+def posterior_update(posterior_loss, tape):
+    gradients = tape.gradient(posterior_loss, variables)
+    optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
+
+
+def mdp_reinforce_update(reason_loss, tensors, tape):
+    for tensor in tensors:
+        gradients = tape.gradient(reason_loss, path_finder.trainable_variables)
         optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
+        reason_loss = reason_loss * reward_param
+    return
 
 
-def prior_update(prior_loss):
-    with tf.GradientTape() as tape:
-        gradients = tape.gradient(prior_loss, path_finder.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
+def prior_update(prior_loss, tape):
+    gradients = tape.gradient(prior_loss, variables)
+    optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
 
 
-train_samples = graph.train_samples_of(task)
+train_samples = graph.train_samples_of(task)[1:100]
 test_samples = graph.test_samples_of(task)
 for i in range(epoch):
-    print('epoch: {} started!'.format(i))
-    for episode in train_samples:
+    print('epoch: {} started!, samples: {}'.format(i, len(train_samples)))
+    for index, episode in enumerate(train_samples):
         start_time = time.time()
-        label = 0
+        label = np.array([0.0, 1.0], dtype='f4')
         rel_emb = np.zeros(emb_size)
         if episode['type'] == '+':
             rel_emb = graph.vec_of_rel_name(task)
-            label = 1
+            label = np.array([1.0, 0.0], dtype='f4')
 
         # 从posterior rollout K个路径
-        paths = path_finder.paths_between(episode['from_id'], episode['to_id'], rel_emb, 20)
-        print("Paths: " + str(paths))
+        with tf.GradientTape() as gradient_tape:
+            paths, trainable_tensors = path_finder.paths_between(episode['from_id'], episode['to_id'], rel_emb, 5)
+            print("Paths: " + str(paths))
 
-        # Monte-Carlo REINFORCE奖励计算
-        log_pr = 0.0
-        for path in paths:
-            log_pr += reasoner_loss(path_reasoner.relation_of_path(path), label)
-        log_pr = log_pr / len(paths)
+            # Monte-Carlo REINFORCE奖励计算
+            log_pr = 0.0
+            for path_index, path in enumerate(paths):
+                path_loss = reasoner_loss(path_reasoner.relation_of_path(path), label)
+                mdp_reinforce_update(path_loss, trainable_tensors[path_index], gradient_tape)
+                log_pr += path_loss
+            log_pr = log_pr / len(paths)
 
-        # 按照posterior->likelihood->prior的顺序更新
-        if episode % 3 == 0:
-            posterior_update(log_pr)
-        elif episode % 3 == 1:
-            reasoner_update(log_pr)
-        else:
-            prior_paths = path_finder.paths_between(episode['from_id'], episode['to_id'], 20)
-            prior_update(divergence_loss(prior_paths, paths))
+            # 按照posterior->likelihood->prior的顺序更新
+            if index % 3 == 0:
+                posterior_update(log_pr, gradient_tape)
+            elif index % 3 == 1:
+                reasoner_update(log_pr, gradient_tape)
+        # else:
+        #     prior_paths = path_finder.paths_between(episode['from_id'], episode['to_id'], 20)
+        #     prior_update(divergence_loss(prior_paths, paths))
 
         end_time = time.time()
         print('time for an episode: {}'.format(end_time - start_time))
