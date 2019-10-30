@@ -93,13 +93,13 @@ class LSTMFinder(tf.keras.Model):
     def paths_between(self, from_id, to_id, relation=None, width=5):
         step = 0
         paths = [(from_id,)]
-        ent_of_paths = [{from_id}]
+        ent_of_paths = [(from_id,)]
 
         initial_input = np.zeros(self.emb_size, dtype="f4")
         # [0]是hidden state, [1]是carry state
         initial_state = self.history_stack.get_initial_state(inputs=np.expand_dims(initial_input, axis=0))
         history_stack_states = [(initial_input, initial_state[0], initial_state[1])]
-        trainable_tensors = [initial_state[0]]
+        action_prob_stacks = [()]
 
         # 最大搜索history_depth跳
         while step < self.history_depth:
@@ -108,7 +108,7 @@ class LSTMFinder(tf.keras.Model):
             updated_paths = []
             updated_stack_states = []
             updated_ent_of_paths = []
-            updated_trainable_tensors = []
+            updated_action_prob_stacks = []
 
             for index, path in enumerate(paths):
                 # 跳过到达目的地的路径
@@ -116,7 +116,7 @@ class LSTMFinder(tf.keras.Model):
                     updated_paths.append(path)
                     updated_stack_states.append(history_stack_states[index])
                     updated_ent_of_paths.append(ent_of_paths[index])
-                    updated_trainable_tensors.append(trainable_tensors[index])
+                    updated_action_prob_stacks.append(action_prob_stacks[index])
                     continue
 
                 # 选择邻接矩阵
@@ -144,13 +144,15 @@ class LSTMFinder(tf.keras.Model):
             top_choices_index = top_n_of_2d_choices(all_probabilities, width - len(updated_paths))
             for _, index in enumerate(top_choices_index):
                 path = paths[index[0]]
+                ent_of_path = ent_of_paths[index[0]]
                 next_step = all_candidates[index[0]][index[1]]
+                action_prob_stack = action_prob_stacks[index[0]]
+
                 # 添加新的top n的路径信息
                 updated_paths.append(path + (next_step.rel_id, next_step.to_id))
-                updated_ent_of_paths.append(ent_of_paths[index[0]].copy())
-                updated_ent_of_paths[-1].add(next_step.to_id)
+                updated_ent_of_paths.append(ent_of_path + (next_step.to_id,))
                 updated_stack_states.append(history_stack_states[index[0]])
-                updated_trainable_tensors.append(all_probabilities[index[0]])
+                updated_action_prob_stacks.append(action_prob_stack + (all_probabilities[index[0]],))
 
                 # 计算新的top n的LSTM 状态
                 input_vector = np.concatenate(
@@ -167,6 +169,7 @@ class LSTMFinder(tf.keras.Model):
             paths = updated_paths
             history_stack_states = updated_stack_states
             ent_of_paths = updated_ent_of_paths
+            action_prob_stacks = updated_action_prob_stacks
             step = step + 1
 
-        return paths, trainable_tensors
+        return paths, action_prob_stacks

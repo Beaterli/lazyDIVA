@@ -67,7 +67,8 @@ def posterior_update(posterior_loss, tape):
 
 def mdp_reinforce_update(reason_loss, action_possibilities, tape):
     for step_possibilities in action_possibilities:
-        action_onehot = tf.cast(tf.one_hot(step_possibilities, depth=step_possibilities.size()), tf.bool)
+        action_dim = step_possibilities.shape[0]
+        action_onehot = tf.cast(tf.one_hot(step_possibilities, action_dim), tf.bool)
         picked_action = tf.boolean_mask(step_possibilities, action_onehot)
         reward = tf.reduce_sum(-tf.log(picked_action) * reason_loss)
 
@@ -96,7 +97,7 @@ for i in range(epoch):
 
         # 从posterior rollout K个路径
         with tf.GradientTape() as gradient_tape:
-            paths, action_possibilities = path_finder.paths_between(episode['from_id'], episode['to_id'], rel_emb, 5)
+            paths, action_possibilities = path_finder.paths_between(episode['from_id'], episode['to_id'], rel_emb, 3)
             print("Paths: " + str(paths))
 
             # Monte-Carlo REINFORCE奖励计算
