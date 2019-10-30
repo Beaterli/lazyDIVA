@@ -65,9 +65,13 @@ def posterior_update(posterior_loss, tape):
     optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
 
 
-def mdp_reinforce_update(reason_loss, tensors, tape):
-    for tensor in tensors:
-        gradients = tape.gradient(reason_loss, path_finder.trainable_variables)
+def mdp_reinforce_update(reason_loss, action_possibilities, tape):
+    for step_possibilities in action_possibilities:
+        action_onehot = tf.cast(tf.one_hot(step_possibilities, depth=step_possibilities.size()), tf.bool)
+        picked_action = tf.boolean_mask(step_possibilities, action_onehot)
+        reward = tf.reduce_sum(-tf.log(picked_action) * reason_loss)
+
+        gradients = tape.gradient(reward, path_finder.trainable_variables)
         optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
         reason_loss = reason_loss * reward_param
     return
@@ -92,14 +96,14 @@ for i in range(epoch):
 
         # 从posterior rollout K个路径
         with tf.GradientTape() as gradient_tape:
-            paths, trainable_tensors = path_finder.paths_between(episode['from_id'], episode['to_id'], rel_emb, 5)
+            paths, action_possibilities = path_finder.paths_between(episode['from_id'], episode['to_id'], rel_emb, 5)
             print("Paths: " + str(paths))
 
             # Monte-Carlo REINFORCE奖励计算
             log_pr = 0.0
             for path_index, path in enumerate(paths):
                 path_loss = reasoner_loss(path_reasoner.relation_of_path(path), label)
-                mdp_reinforce_update(path_loss, trainable_tensors[path_index], gradient_tape)
+                mdp_reinforce_update(path_loss, action_possibilities[path_index], gradient_tape)
                 log_pr += path_loss
             log_pr = log_pr / len(paths)
 
