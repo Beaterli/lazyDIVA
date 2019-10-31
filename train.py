@@ -7,12 +7,15 @@ import numpy as np
 import tensorflow as tf
 
 from graph.graph import Graph
+from pathfinder.bfsfinder import BFSFinder
 from pathfinder.lstmfinder import LSTMFinder
 from pathreasoner.cnn_reasoner import CNNReasoner
 
 tfe = tf.contrib.eager
 tf.enable_eager_execution()
 
+teacher_epoch = 10
+teacher_path_count = 3
 epoch = 10
 task = 'concept:athletehomestadium'
 graph = Graph('graph.db')
@@ -21,8 +24,9 @@ graph.prohibit_relation(task)
 train_set = []
 test_set = []
 
+teacher = BFSFinder(graph=graph, max_path_length=5)
 path_finder = LSTMFinder(graph=graph, emb_size=100, max_path_length=5)
-path_reasoner = CNNReasoner(graph=graph, input_width=200, max_path_length=3)
+path_reasoner = CNNReasoner(graph=graph, input_width=200, max_path_length=5)
 variables = path_finder.trainable_variables + path_reasoner.trainable_variables
 # 最终奖励值倒推时的递减系数
 reward_param = 0.8
@@ -55,6 +59,15 @@ def divergence_loss(prior_path, posterior_path):
 optimizer = tf.train.AdamOptimizer(1e-4)
 
 
+def one_hot_loss(target_action, action_prob, reward):
+    action_dim = action_prob.shape[0]
+    action_onehot = tf.one_hot(target_action, action_dim)
+    action_mask = tf.cast(action_onehot, tf.bool)
+    picked_prob = tf.boolean_mask(action_prob, action_mask)
+    action_loss = tf.reduce_sum(-tf.log(picked_prob) * reward)
+    return action_loss
+
+
 def reasoner_update(reason_loss, tape):
     gradients = tape.gradient(reason_loss, variables)
     optimizer.apply_gradients(zip(gradients, path_reasoner.trainable_variables))
@@ -65,15 +78,10 @@ def posterior_update(posterior_loss, tape):
     optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
 
 
-def mdp_reinforce_update(reason_loss, actions, action_possibilities, tape):
-    for step_index, step_possibilities in enumerate(action_possibilities):
-        action_dim = step_possibilities.shape[0]
-        action_onehot = tf.one_hot(actions[step_index], action_dim)
-        action_mask = tf.cast(action_onehot, tf.bool)
-        picked_action = tf.boolean_mask(step_possibilities, action_mask)
-        reward = tf.reduce_sum(-tf.log(picked_action) * reason_loss)
-
-        gradients = tape.gradient(reward, path_finder.trainable_variables)
+def mdp_reinforce_update(reason_loss, actions, action_probs, tapes):
+    for step_index, step_prob in enumerate(action_probs):
+        reward = one_hot_loss(actions[step_index], step_prob, reason_loss)
+        gradients = tapes[step_index].gradient(reward, path_finder.trainable_variables)
         optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
     return
 
@@ -82,6 +90,31 @@ def prior_update(prior_loss, tape):
     gradients = tape.gradient(prior_loss, variables)
     optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
 
+
+teacher_samples = graph.samples_of(task, "train", "+")[1:100]
+for i in range(teacher_epoch):
+    print('teacher epoch: {} started!, samples: {}'.format(i, len(teacher_samples)))
+    for index, episode in enumerate(teacher_samples):
+        start_time = time.time()
+
+        rel_emb = graph.vec_of_rel_name(task)
+        teacher_states = teacher.paths_between(episode['from_id'], episode['to_id'], teacher_path_count)
+        student_states = path_finder.paths_between(episode['from_id'], episode['to_id'], teacher_path_count, rel_emb)
+
+        for j in range(teacher_path_count):
+            teacher_actions = teacher_states[j].action_chosen
+            student_actions = student_states[j].action_chosen
+            student_action_probs = student_states[j].action_probs
+            tapes = student_states[j].tapes
+
+            step_count = min(len(teacher_actions), len(student_actions))
+            for k in range(step_count):
+                loss = one_hot_loss(teacher_actions[k], student_action_probs, 1)
+                gradient = tapes[k].gradient(loss, path_finder.trainable_variables)
+                optimizer.apply_gradients(zip(gradient, path_finder.trainable_variables))
+
+        end_time = time.time()
+        print('time for episode: {} is {}'.format(episode, end_time - start_time))
 
 train_samples = graph.train_samples_of(task)[1:100]
 test_samples = graph.test_samples_of(task)
@@ -97,15 +130,23 @@ for i in range(epoch):
 
         # 从posterior rollout K个路径
         with tf.GradientTape() as gradient_tape:
-            paths, action_possibilities, action_chosens = path_finder.paths_between(episode['from_id'],
-                                                                                    episode['to_id'], rel_emb, 3)
+            path_states = path_finder.paths_between(episode['from_id'], episode['to_id'], 3, rel_emb)
+
+            paths = []
+            prob_stacks = []
+            action_chosens = []
+            for state in path_states:
+                paths.append(state.path)
+                prob_stacks.append(state.action_probs)
+                action_chosens.append(state.action_chosen)
+
             print("Paths: " + str(paths))
 
             # Monte-Carlo REINFORCE奖励计算
             log_pr = 0.0
             for path_index, path in enumerate(paths):
                 path_loss = reasoner_loss(path_reasoner.relation_of_path(path), label)
-                mdp_reinforce_update(path_loss, action_chosens[path_index], action_possibilities[path_index],
+                mdp_reinforce_update(path_loss, action_chosens[path_index], prob_stacks[path_index],
                                      gradient_tape)
                 log_pr += path_loss
             log_pr = log_pr / len(paths)

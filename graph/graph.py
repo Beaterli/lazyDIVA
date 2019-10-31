@@ -29,11 +29,14 @@ class Graph(object):
             self.neighbors[row[0]].append(Link(row[1], row[2]))
         print('graph load complete!')
 
-    def samples_of(self, relation_text, stage):
+    def samples_of(self, relation_text, stage, type=None):
         samples = []
-        for row in self.conn.execute('''select from_id, to_id, "type" from samples 
-            where rid = (select rid from relations where relation = ?) and stage = ?''',
-                                     (relation_text, stage)):
+        sql = '''select from_id, to_id, "type" from samples 
+            where rid = (select rid from relations where relation = ?) and stage = ?'''
+        if type is not None:
+            sql = sql + ''' and type = ?'''
+
+        for row in self.conn.execute(sql, (relation_text, stage, type)):
             samples.append({
                 'from_id': row[0],
                 'to_id': row[1],

@@ -1,36 +1,6 @@
 import numpy as np
 import tensorflow as tf
-
-
-# 极其辣鸡的前n个查找算法
-def top_n_of_2d_choices(choices, n):
-    positions = []
-
-    for i in range(n):
-        max_choice = 0.0
-        max_x = -1
-        max_y = -1
-        for x, row in enumerate(choices):
-            for y, choice in enumerate(row):
-                if choice > max_choice and (x, y) not in positions:
-                    max_choice = choice
-                    max_x = x
-                    max_y = y
-        if max_choice == 0.0:
-            break
-        positions.append((max_x, max_y))
-    return positions
-
-
-# 测试前n个查找算法
-print(top_n_of_2d_choices(np.array([
-    [0.1, 0.6, 0.4],
-    [0.3, 0.5, 0.9],
-    [0.7, 0.8, 0.9]
-]), 5))
-print(top_n_of_2d_choices(np.array([
-    [0.1, 0.6, 0.4]
-]), 5))
+from finderstate import FinderState
 
 
 class LSTMFinder(tf.keras.Model):
@@ -41,7 +11,7 @@ class LSTMFinder(tf.keras.Model):
         self.selection_mlp = {}
         self.history_depth = max_path_length
         self.emb_size = emb_size
-        self.history_stack = tf.keras.layers.LSTMCell(emb_size)
+        self.history_stack = tf.keras.layers.LSTMCell(2 * emb_size)
         self.prior_mlp = tf.keras.Sequential([
             tf.keras.layers.InputLayer(input_shape=(1, 2 * emb_size)),
             tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu),
@@ -90,92 +60,91 @@ class LSTMFinder(tf.keras.Model):
 
     # prior/posterior, 通过relation区分
     # 还没有测试过，很可能有bug
-    def paths_between(self, from_id, to_id, relation=None, width=5):
+    def paths_between(self, from_id, to_id, width=5, relation=None):
         step = 0
-        paths = [(from_id,)]
-        ent_of_paths = [(from_id,)]
-        action_prob_stacks = [()]
-        action_chosens = [()]
 
         initial_input = np.zeros(self.emb_size, dtype="f4")
         # [0]是hidden state, [1]是carry state
         initial_state = self.history_stack.get_initial_state(inputs=np.expand_dims(initial_input, axis=0))
-        history_stack_states = [(initial_input, initial_state[0], initial_state[1])]
+        states = [FinderState(from_id, (initial_input, initial_state[0], initial_state[1]))]
 
         # 最大搜索history_depth跳
         while step < self.history_depth:
-            all_candidates = [[]] * len(paths)
-            all_probabilities = [[]] * len(paths)
-            updated_paths = []
-            updated_stack_states = []
-            updated_ent_of_paths = []
-            updated_action_prob_stacks = []
-            updated_action_chosens = []
+            all_candidates = []
+            action_probs = []
+            flatten_probs = []
+            history_states = []
+            chosen_to_pos = []
+            updated_states = []
+            tapes = []
 
-            for index, path in enumerate(paths):
+            for index, state in enumerate(states):
                 # 跳过到达目的地的路径
-                if path[-1] == to_id:
-                    updated_paths.append(path)
-                    updated_stack_states.append(history_stack_states[index])
-                    updated_ent_of_paths.append(ent_of_paths[index])
-                    updated_action_prob_stacks.append(action_prob_stacks[index])
-                    updated_action_chosens.append(action_chosens[index])
+                path = state.path
+                current_id = path[-1]
+                if current_id == to_id:
+                    updated_states.append(state)
                     continue
 
                 # 选择邻接矩阵
                 candidates = []
-                ent_in_path = ent_of_paths[index]
-                for neighbor in self.graph.neighbors_of(path[-1]):
-                    if neighbor.to_id not in ent_in_path:
+                for neighbor in self.graph.neighbors_of(current_id):
+                    if neighbor.to_id not in state.entities:
                         candidates.append(neighbor)
 
                 if len(candidates) == 0:
                     continue
 
-                all_candidates[index] = candidates
+                with tf.GradientTape() as tape:
+                    # 计算新的top n的LSTM状态
+                    rel_vector = np.zeros(self.emb_size)
+                    if len(path) > 1:
+                        rel_vector = self.graph.vec_of_rel(path[-2])
+                    input_vector = np.concatenate(
+                        (rel_vector, self.graph.vec_of_ent(current_id))
+                    )
 
-                # 计算邻接节点的概率
-                probabilities = self.next_step_probabilities(
-                    self.graph.vec_of_ent(path[-1]),
-                    history_stack_states[index][0],
-                    candidates,
-                    relation
-                )
-                all_probabilities[index] = probabilities
+                    history_state = state.history_state
+                    output_vector, stack_state = self.history_stack(
+                        inputs=np.expand_dims(input_vector, axis=0),
+                        states=(history_state[1], history_state[2])
+                    )
 
-            # 将已到达终点的路径以外的候选路径筛选出来
-            top_choices_index = top_n_of_2d_choices(all_probabilities, width - len(updated_paths))
-            for _, index in enumerate(top_choices_index):
-                path = paths[index[0]]
-                ent_of_path = ent_of_paths[index[0]]
-                next_step = all_candidates[index[0]][index[1]]
-                action_prob_stack = action_prob_stacks[index[0]]
-                action_chosen = action_chosens[index[0]]
+                    history_state = (output_vector[0], stack_state[0], stack_state[1])
+                    history_states.append(history_state)
 
-                # 添加新的top n的路径信息
-                updated_paths.append(path + (next_step.rel_id, next_step.to_id))
-                updated_ent_of_paths.append(ent_of_path + (next_step.to_id,))
-                updated_stack_states.append(history_stack_states[index[0]])
-                updated_action_prob_stacks.append(action_prob_stack + (all_probabilities[index[0]],))
-                updated_action_chosens.append(action_chosen + (index[1],))
+                    all_candidates.append(candidates)
 
-                # 计算新的top n的LSTM 状态
-                input_vector = np.concatenate(
-                    (self.graph.vec_of_rel(next_step.rel_id), self.graph.vec_of_ent(next_step.to_id))
-                )
+                    # 计算邻接节点的概率
+                    probabilities = self.next_step_probabilities(
+                        self.graph.vec_of_ent(current_id),
+                        history_state[0],
+                        candidates,
+                        relation
+                    )
+                    action_probs.append(probabilities)
+                    flatten_probs = flatten_probs + probabilities
+                    for action_index in range(len(probabilities)):
+                        chosen_to_pos.append((index, action_index))
 
-                output_vector, stack_state = self.history_stack(
-                    inputs=np.expand_dims(input_vector, axis=0),
-                    states=(updated_stack_states[-1][1], updated_stack_states[-1][2])
-                )
+                    tapes.append(tape)
 
-                updated_stack_states[-1] = (output_vector[0], stack_state[0], stack_state[1])
+            # 从动作空间中随机选取n个动作
+            actions_chosen = np.random.choice(np.arange(len(flatten_probs)), size=width, replace=False, p=flatten_probs)
+            # 根据选取的动作更新路径状态
+            for action_chosen in actions_chosen:
+                state_index = chosen_to_pos[action_chosen][0]
+                candidate_index = chosen_to_pos[actions_chosen][1]
+                updated_states.append(FinderState(
+                    path_step=all_candidates[state_index][candidate_index],
+                    history_state=history_states[state_index],
+                    action_prob=action_probs[state_index],
+                    action_chosen=candidate_index,
+                    tape=tapes[state_index],
+                    prev_state=states[state_index]
+                ))
 
-            paths = updated_paths
-            history_stack_states = updated_stack_states
-            ent_of_paths = updated_ent_of_paths
-            action_prob_stacks = updated_action_prob_stacks
-            action_chosens = updated_action_chosens
+            states = updated_states
             step = step + 1
 
-        return paths, action_prob_stacks, action_chosens
+        return states
