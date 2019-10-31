@@ -1,7 +1,7 @@
 import os
 import sqlite3
 
-dataPath = 'D:\\project\\paper\\NELL-995\\'
+dataPath = 'D:\\project\\master-degree\\NELL-995\\'
 entityIdFile = dataPath + 'entity2id.txt'
 relationIdFile = dataPath + 'relation2id.txt'
 entityVecFile = dataPath + 'entity2vec.bern'
@@ -81,7 +81,9 @@ for name in os.listdir(dataPath + "tasks"):
         to_ent, positive = to_ent.split(': ')
         to_ent = to_ent.replace('thing$', '')
         conn.execute('''insert into samples values(?, ?, ?, ?, ?)''',
-                     (entityIds[from_ent], relationIds[rel], entityIds[to_ent], positive, 'train'))
+                     (entityIds[from_ent], relationIds[rel], entityIds[to_ent],
+                      positive.replace('\n', '').replace('\r', ''),
+                      'train'))
     trainFile.close()
 
     testFile = open(task_path + "\\test.pairs")
@@ -91,7 +93,9 @@ for name in os.listdir(dataPath + "tasks"):
         to_ent, positive = to_ent.split(': ')
         to_ent = to_ent.replace('thing$', '')
         conn.execute('''insert into samples values(?, ?, ?, ?, ?)''',
-                     (entityIds[from_ent], relationIds[rel], entityIds[to_ent], positive, 'test'))
+                     (entityIds[from_ent], relationIds[rel], entityIds[to_ent],
+                      positive.strip().replace('\n', '').replace('\r', ''),
+                      'test'))
     testFile.close()
 conn.commit()
 

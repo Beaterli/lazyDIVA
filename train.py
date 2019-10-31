@@ -7,6 +7,7 @@ import numpy as np
 import tensorflow as tf
 
 from graph.graph import Graph
+from loss import one_hot
 from pathfinder.bfsfinder import BFSFinder
 from pathfinder.lstmfinder import LSTMFinder
 from pathreasoner.cnn_reasoner import CNNReasoner
@@ -27,7 +28,6 @@ test_set = []
 teacher = BFSFinder(graph=graph, max_path_length=5)
 path_finder = LSTMFinder(graph=graph, emb_size=100, max_path_length=5)
 path_reasoner = CNNReasoner(graph=graph, input_width=200, max_path_length=5)
-variables = path_finder.trainable_variables + path_reasoner.trainable_variables
 # 最终奖励值倒推时的递减系数
 reward_param = 0.8
 
@@ -59,15 +59,6 @@ def divergence_loss(prior_path, posterior_path):
 optimizer = tf.train.AdamOptimizer(1e-4)
 
 
-def one_hot_loss(target_action, action_prob, reward):
-    action_dim = action_prob.shape[0]
-    action_onehot = tf.one_hot(target_action, action_dim)
-    action_mask = tf.cast(action_onehot, tf.bool)
-    picked_prob = tf.boolean_mask(action_prob, action_mask)
-    action_loss = tf.reduce_sum(-tf.log(picked_prob) * reward)
-    return action_loss
-
-
 def reasoner_update(reason_loss, tape):
     gradients = tape.gradient(reason_loss, variables)
     optimizer.apply_gradients(zip(gradients, path_reasoner.trainable_variables))
@@ -80,7 +71,7 @@ def posterior_update(posterior_loss, tape):
 
 def mdp_reinforce_update(reason_loss, actions, action_probs, tapes):
     for step_index, step_prob in enumerate(action_probs):
-        reward = one_hot_loss(actions[step_index], step_prob, reason_loss)
+        reward = one_hot(actions[step_index], step_prob, reason_loss)
         gradients = tapes[step_index].gradient(reward, path_finder.trainable_variables)
         optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
     return
@@ -90,31 +81,6 @@ def prior_update(prior_loss, tape):
     gradients = tape.gradient(prior_loss, variables)
     optimizer.apply_gradients(zip(gradients, path_finder.trainable_variables))
 
-
-teacher_samples = graph.samples_of(task, "train", "+")[1:100]
-for i in range(teacher_epoch):
-    print('teacher epoch: {} started!, samples: {}'.format(i, len(teacher_samples)))
-    for index, episode in enumerate(teacher_samples):
-        start_time = time.time()
-
-        rel_emb = graph.vec_of_rel_name(task)
-        teacher_states = teacher.paths_between(episode['from_id'], episode['to_id'], teacher_path_count)
-        student_states = path_finder.paths_between(episode['from_id'], episode['to_id'], teacher_path_count, rel_emb)
-
-        for j in range(teacher_path_count):
-            teacher_actions = teacher_states[j].action_chosen
-            student_actions = student_states[j].action_chosen
-            student_action_probs = student_states[j].action_probs
-            tapes = student_states[j].tapes
-
-            step_count = min(len(teacher_actions), len(student_actions))
-            for k in range(step_count):
-                loss = one_hot_loss(teacher_actions[k], student_action_probs, 1)
-                gradient = tapes[k].gradient(loss, path_finder.trainable_variables)
-                optimizer.apply_gradients(zip(gradient, path_finder.trainable_variables))
-
-        end_time = time.time()
-        print('time for episode: {} is {}'.format(episode, end_time - start_time))
 
 train_samples = graph.train_samples_of(task)[1:100]
 test_samples = graph.test_samples_of(task)
@@ -166,9 +132,11 @@ for i in range(epoch):
     # 测试每一轮的训练效果
     loss = tfe.metrics.Mean()
     for episode in test_samples:
-        label = 0
+        value = 0
         if episode['type'] == '+':
-            label = 1
+            value = 1
+
+        label = tf.cast(tf.one_hot(value, 2), tf.float32)
 
         # beam search 5条路径
         paths = path_finder.paths_between(episode['from_id'], episode['to_id'], 5)

@@ -31,12 +31,15 @@ class Graph(object):
 
     def samples_of(self, relation_text, stage, type=None):
         samples = []
+
         sql = '''select from_id, to_id, "type" from samples 
-            where rid = (select rid from relations where relation = ?) and stage = ?'''
+                where rid = (select rid from relations where relation = ?) and stage = ?'''
+        params = [relation_text, stage]
         if type is not None:
             sql = sql + ''' and type = ?'''
+            params.append(type)
 
-        for row in self.conn.execute(sql, (relation_text, stage, type)):
+        for row in self.conn.execute(sql, params):
             samples.append({
                 'from_id': row[0],
                 'to_id': row[1],
@@ -76,8 +79,8 @@ class Graph(object):
         return self.relEmb[rel_id]
 
     def vec_of_rel_name(self, rel_name):
-        vec = np.zeros(200)
-        for row in self.conn.execute('''select emb from relations where relation = ?''', rel_name):
+        vec = np.zeros(100)
+        for row in self.conn.execute('''select emb from relations where relation = ?''', (rel_name,)):
             vec = np.genfromtxt(StringIO(row[0]), dtype="f4")
         return vec
 

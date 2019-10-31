@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
-from finderstate import FinderState
+
+from .finderstate import FinderState
 
 
 class LSTMFinder(tf.keras.Model):
@@ -11,7 +12,7 @@ class LSTMFinder(tf.keras.Model):
         self.selection_mlp = {}
         self.history_depth = max_path_length
         self.emb_size = emb_size
-        self.history_stack = tf.keras.layers.LSTMCell(2 * emb_size)
+        self.history_stack = tf.keras.layers.LSTMCell(1 * emb_size)
         self.prior_mlp = tf.keras.Sequential([
             tf.keras.layers.InputLayer(input_shape=(1, 2 * emb_size)),
             tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu),
@@ -23,16 +24,49 @@ class LSTMFinder(tf.keras.Model):
             tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu)
         ])
 
-    def next_step_probabilities(self, ent_enb, history_vector, candidates, relation=None):
-        # 根据relation计算prior特征或posterior特征
+    def initial_state(self, from_id):
+        initial_input = np.zeros(self.emb_size, dtype="f4")
+        # [0]是hidden state, [1]是carry state
+        initial_state = self.history_stack.get_initial_state(inputs=np.expand_dims(initial_input, axis=0))
+        return FinderState(path_step=from_id, history_state=(initial_input, initial_state[0], initial_state[1]))
 
-        if relation is None:
+    def available_action_probs(self, state, label_vec=None):
+        path = state.path
+        current_id = path[-1]
+        # 选择邻接矩阵
+        candidates = []
+        for neighbor in self.graph.neighbors_of(current_id):
+            if neighbor.to_id not in state.entities:
+                candidates.append(neighbor)
+
+        if len(candidates) == 0:
+            return [], np.zeros(0, dtype='f4'), state.history_state
+
+        # 计算LSTM状态
+        rel_vector = np.zeros(self.emb_size, dtype='f4')
+        if len(path) > 1:
+            rel_vector = self.graph.vec_of_rel(path[-2])
+        input_vector = np.concatenate(
+            (rel_vector, self.graph.vec_of_ent(current_id))
+        )
+
+        history_state = state.history_state
+        output_vector, stack_state = self.history_stack(
+            inputs=np.expand_dims(input_vector, axis=0),
+            states=(history_state[1], history_state[2])
+        )
+
+        history_state = (output_vector[0], stack_state[0], stack_state[1])
+
+        ent_vec = self.graph.vec_of_ent(current_id)
+        # 根据relation计算prior特征或posterior特征
+        if label_vec is None:
             feature = self.prior_mlp(
-                np.concatenate((ent_enb, history_vector)))
+                np.concatenate((ent_vec, history_state[0])))
         else:
             feature = self.posterior_mlp(
                 np.expand_dims(
-                    np.concatenate((ent_enb, history_vector, relation)),
+                    np.concatenate((ent_vec, history_state[0], label_vec)),
                     axis=0
                 )
             )
@@ -56,17 +90,13 @@ class LSTMFinder(tf.keras.Model):
 
         # 计算选择概率
         probabilities = tf.keras.activations.softmax(tf.reshape(choices, [1, len(candidates)]))
-        return probabilities[0]
+        return candidates, probabilities[0], history_state
 
     # prior/posterior, 通过relation区分
     # 还没有测试过，很可能有bug
     def paths_between(self, from_id, to_id, width=5, relation=None):
         step = 0
-
-        initial_input = np.zeros(self.emb_size, dtype="f4")
-        # [0]是hidden state, [1]是carry state
-        initial_state = self.history_stack.get_initial_state(inputs=np.expand_dims(initial_input, axis=0))
-        states = [FinderState(from_id, (initial_input, initial_state[0], initial_state[1]))]
+        states = [self.initial_state(from_id)]
 
         # 最大搜索history_depth跳
         while step < self.history_depth:
@@ -86,48 +116,19 @@ class LSTMFinder(tf.keras.Model):
                     updated_states.append(state)
                     continue
 
-                # 选择邻接矩阵
-                candidates = []
-                for neighbor in self.graph.neighbors_of(current_id):
-                    if neighbor.to_id not in state.entities:
-                        candidates.append(neighbor)
-
-                if len(candidates) == 0:
-                    continue
-
                 with tf.GradientTape() as tape:
-                    # 计算新的top n的LSTM状态
-                    rel_vector = np.zeros(self.emb_size)
-                    if len(path) > 1:
-                        rel_vector = self.graph.vec_of_rel(path[-2])
-                    input_vector = np.concatenate(
-                        (rel_vector, self.graph.vec_of_ent(current_id))
-                    )
-
-                    history_state = state.history_state
-                    output_vector, stack_state = self.history_stack(
-                        inputs=np.expand_dims(input_vector, axis=0),
-                        states=(history_state[1], history_state[2])
-                    )
-
-                    history_state = (output_vector[0], stack_state[0], stack_state[1])
-                    history_states.append(history_state)
-
-                    all_candidates.append(candidates)
-
-                    # 计算邻接节点的概率
-                    probabilities = self.next_step_probabilities(
-                        self.graph.vec_of_ent(current_id),
-                        history_state[0],
-                        candidates,
-                        relation
-                    )
-                    action_probs.append(probabilities)
-                    flatten_probs = flatten_probs + probabilities
-                    for action_index in range(len(probabilities)):
-                        chosen_to_pos.append((index, action_index))
-
+                    candidates, candidate_probs, history_state = self.available_action_probs(state, relation)
+                    if len(candidates) == 0:
+                        continue
                     tapes.append(tape)
+
+                all_candidates.append(candidates)
+                history_states.append(history_state)
+
+                action_probs.append(candidate_probs)
+                flatten_probs = flatten_probs + candidate_probs
+                for action_index in range(len(candidate_probs)):
+                    chosen_to_pos.append((index, action_index))
 
             # 从动作空间中随机选取n个动作
             actions_chosen = np.random.choice(np.arange(len(flatten_probs)), size=width, replace=False, p=flatten_probs)
@@ -141,7 +142,7 @@ class LSTMFinder(tf.keras.Model):
                     action_prob=action_probs[state_index],
                     action_chosen=candidate_index,
                     tape=tapes[state_index],
-                    prev_state=states[state_index]
+                    pre_state=states[state_index]
                 ))
 
             states = updated_states
