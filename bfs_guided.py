@@ -35,7 +35,7 @@ teacher_samples = graph.samples_of(task, "train", "+")
 
 quick_samples = []
 quick_samples_states = []
-for episode in teacher_samples:
+for episode in teacher_samples[:10]:
     start_time = time.time()
     states = teacher.paths_between(
         from_id=episode['from_id'],
@@ -66,22 +66,19 @@ for i in range(teacher_epoch):
                 with tf.GradientTape() as tape:
                     candidates, student_action_probs, history_state \
                         = student.available_action_probs(student_state, rel_emb)
-
-                    updated_state = FinderState(
-                        path_step=(candidates[label_action].rel_id, candidates[label_action].to_id),
-                        history_state=history_state,
-                        action_prob=student_action_probs,
-                        action_chosen=label_action,
-                        pre_state=student_state
-                    )
-
                     neg_log_prob = loss.one_hot(label_action, student_action_probs, 1)
-                    gradient = tape.gradient(neg_log_prob, student.trainable_variables)
-                    optimizer.apply_gradients(zip(gradient, student.trainable_variables))
 
-                    probs.append(student_action_probs[label_action])
+                student_state = FinderState(
+                    path_step=candidates[label_action].to_tuple(),
+                    history_state=history_state,
+                    action_prob=student_action_probs,
+                    action_chosen=label_action,
+                    pre_state=student_state
+                )
+                gradient = tape.gradient(neg_log_prob, student.trainable_variables)
+                optimizer.apply_gradients(zip(gradient, student.trainable_variables))
 
-                student_state = updated_state
+                probs.append(student_action_probs[label_action])
 
         end_time = time.time()
         # print('time for episode: {} is {}'.format(episode, end_time - start_time))
@@ -95,7 +92,7 @@ for i in range(teacher_epoch):
         np.average(np_probs)
     ))
 
-    if epoch % 2 == 0:
-        student.save_weights(checkpoint_dir + 'student')
+    # if epoch % 2 == 0:
+    # student.save_weights(checkpoint_dir + 'student')
 
 print('pre-train finished!')

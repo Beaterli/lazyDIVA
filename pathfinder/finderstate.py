@@ -13,7 +13,12 @@ class FinderState(object):
                 self.entities = (path_step,)
 
             self.action_probs = ()
-            self.action_chosen = (action_chosen,)
+
+            if action_chosen is not None:
+                self.action_chosen = (action_chosen,)
+            else:
+                self.action_chosen = ()
+
             self.tapes = ()
 
         if pre_state is not None:

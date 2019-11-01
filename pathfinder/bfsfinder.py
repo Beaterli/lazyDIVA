@@ -25,7 +25,7 @@ class BFSFinder(object):
         for index, neighbor in enumerate(candidates):
             if neighbor.to_id == to_id:
                 return [FinderState(
-                    path_step=(neighbor.rel_id, to_id),
+                    path_step=neighbor.to_tuple(),
                     action_chosen=index
                 )]
 
@@ -49,7 +49,7 @@ class BFSFinder(object):
             roof = min(width - len(states), len(postfix_states))
             for i in range(0, roof):
                 states.append(FinderState(
-                    path_step=(neighbor.rel_id, neighbor.to_id),
+                    path_step=neighbor.to_tuple(),
                     action_chosen=index,
                     post_state=postfix_states[i]
                 ))

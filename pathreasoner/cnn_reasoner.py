@@ -44,13 +44,13 @@ class CNNReasoner(tf.keras.Model):
         cnn_input = np.expand_dims(np.array(input_mat), axis=0)
 
         # 计算特征
-        feature_window_1 = self.cnn_windows[0](cnn_input)[0][0]
-        feature_window_2 = self.cnn_windows[1](cnn_input)[0][0]
-        feature_window_3 = self.cnn_windows[2](cnn_input)[0][0]
-        concat_feature = np.concatenate(
-            (feature_window_1, feature_window_2, feature_window_3)
+        feature_window_1 = self.cnn_windows[0](cnn_input)[0]
+        feature_window_2 = self.cnn_windows[1](cnn_input)[0]
+        feature_window_3 = self.cnn_windows[2](cnn_input)[0]
+        concat_feature = tf.concat(
+            [feature_window_1, feature_window_2, feature_window_3], 1
         )
 
         # 计算概率
-        probabilities = self.classifier(np.expand_dims(concat_feature, axis=0))
+        probabilities = self.classifier(concat_feature)
         return probabilities[0]

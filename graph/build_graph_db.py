@@ -1,7 +1,7 @@
 import os
 import sqlite3
 
-dataPath = 'D:\\project\\master-degree\\NELL-995\\'
+dataPath = 'D:\\project\\paper\\NELL-995\\'
 entityIdFile = dataPath + 'entity2id.txt'
 relationIdFile = dataPath + 'relation2id.txt'
 entityVecFile = dataPath + 'entity2vec.bern'

@@ -118,6 +118,9 @@ class Link(object):
         self.rel_id = rel_id
         self.to_id = to_id
 
+    def to_tuple(self):
+        return self.rel_id, self.to_id
+
     def __str__(self):
         return "{} -> {}".format(self.rel_id, self.to_id)
 

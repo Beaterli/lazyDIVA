@@ -98,12 +98,13 @@ class LSTMFinder(tf.keras.Model):
         while step < self.history_depth:
             all_candidates = []
             action_probs = []
-            flatten_probs = []
+            flatten_probs = np.zeros(0)
             history_states = []
             chosen_to_pos = []
             updated_states = []
             tapes = []
 
+            counter = 0
             for index, state in enumerate(states):
                 # 跳过到达目的地的路径
                 path = state.path
@@ -122,18 +123,29 @@ class LSTMFinder(tf.keras.Model):
                 history_states.append(history_state)
 
                 action_probs.append(candidate_probs)
-                flatten_probs = flatten_probs + candidate_probs
+                flatten_probs = np.concatenate((flatten_probs, candidate_probs))
                 for action_index in range(len(candidate_probs)):
-                    chosen_to_pos.append((index, action_index))
+                    chosen_to_pos.append((counter, action_index))
+
+                counter += 1
 
             # 从动作空间中随机选取n个动作
-            actions_chosen = np.random.choice(np.arange(len(flatten_probs)), size=width, replace=False, p=flatten_probs)
+            flatten_probs /= flatten_probs.sum()
+            if len(flatten_probs) > width:
+                choices = width
+            else:
+                choices = len(flatten_probs)
+            actions_chosen = np.random.choice(np.arange(len(flatten_probs)),
+                                              size=choices,
+                                              replace=False,
+                                              p=flatten_probs)
+
             # 根据选取的动作更新路径状态
             for action_chosen in actions_chosen:
                 state_index = chosen_to_pos[action_chosen][0]
-                candidate_index = chosen_to_pos[actions_chosen][1]
+                candidate_index = chosen_to_pos[action_chosen][1]
                 updated_states.append(FinderState(
-                    path_step=all_candidates[state_index][candidate_index],
+                    path_step=all_candidates[state_index][candidate_index].to_tuple(),
                     history_state=history_states[state_index],
                     action_prob=action_probs[state_index],
                     action_chosen=candidate_index,
