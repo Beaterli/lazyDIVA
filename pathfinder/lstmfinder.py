@@ -5,24 +5,27 @@ from .finderstate import FinderState
 
 
 class LSTMFinder(tf.keras.Model):
-    def __init__(self, graph, emb_size, max_path_length):
+    def __init__(self, graph, emb_size, max_path_length, prior=False):
         super(LSTMFinder, self).__init__()
         self.graph = graph
         self.rnn_stack = {}
         self.selection_mlp = {}
         self.history_depth = max_path_length
         self.emb_size = emb_size
-        self.history_stack = tf.keras.layers.LSTMCell(1 * emb_size)
-        self.prior_mlp = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(1, 2 * emb_size)),
-            tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu),
-            tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu)
-        ])
-        self.posterior_mlp = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(1, 3 * emb_size)),
-            tf.keras.layers.Dense(3 * emb_size, activation=tf.nn.relu),
-            tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu)
-        ])
+        self.history_width = 2 * emb_size
+        self.history_stack = tf.keras.layers.LSTMCell(self.history_width)
+        if prior:
+            self.mlp = tf.keras.Sequential([
+                tf.keras.layers.InputLayer(input_shape=(1, self.history_width + 1 * emb_size)),
+                tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu),
+                tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu)
+            ])
+        else:
+            self.mlp = tf.keras.Sequential([
+                tf.keras.layers.InputLayer(input_shape=(1, self.history_width + 2 * emb_size)),
+                tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu),
+                tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu)
+            ])
 
     def initial_state(self, from_id):
         initial_input = np.zeros(self.emb_size, dtype="f4")
@@ -59,17 +62,13 @@ class LSTMFinder(tf.keras.Model):
         history_state = (output_vector[0], stack_state[0], stack_state[1])
 
         ent_vec = self.graph.vec_of_ent(current_id)
+
         # 根据relation计算prior特征或posterior特征
-        if label_vec is None:
-            feature = self.prior_mlp(
-                np.concatenate((ent_vec, history_state[0])))
+        if label_vec is not None:
+            mlp_input = tf.concat([ent_vec, history_state[0], label_vec], 0)
         else:
-            feature = self.posterior_mlp(
-                np.expand_dims(
-                    np.concatenate((ent_vec, history_state[0], label_vec)),
-                    axis=0
-                )
-            )
+            mlp_input = tf.concat([ent_vec, history_state[0]], 0)
+        feature = self.mlp(tf.expand_dims(mlp_input, axis=0))
 
         emb_list = []
         for candidate in candidates:
@@ -80,16 +79,13 @@ class LSTMFinder(tf.keras.Model):
         candidates_emb = np.array(emb_list)
 
         # 计算点积
-        try:
-            choices = tf.keras.layers.dot(
-                [candidates_emb, feature],
-                axes=1
-            )
-        except IndexError:
-            print(candidates_emb.shape, feature.shape)
+        choices = tf.keras.layers.dot(
+            [tf.expand_dims(feature, axis=0), np.expand_dims(candidates_emb, axis=0)],
+            axes=2
+        )
 
         # 计算选择概率
-        probabilities = tf.keras.activations.softmax(tf.reshape(choices, [1, len(candidates)]))
+        probabilities = tf.keras.activations.softmax(choices[0])
         return candidates, probabilities[0], history_state
 
     # prior/posterior, 通过relation区分

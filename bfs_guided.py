@@ -1,8 +1,8 @@
 from __future__ import absolute_import, division, print_function
 
-import math
 import time
 
+import numpy as np
 # Import TensorFlow >= 1.9 and enable eager execution
 import tensorflow as tf
 
@@ -11,9 +11,6 @@ from graph.graph import Graph
 from pathfinder.bfsfinder import BFSFinder
 from pathfinder.finderstate import FinderState
 from pathfinder.lstmfinder import LSTMFinder
-
-tfe = tf.contrib.eager
-tf.enable_eager_execution()
 
 teacher_epoch = 25
 teacher_path_count = 3
@@ -27,9 +24,12 @@ rel_emb = graph.vec_of_rel_name(task)
 teacher = BFSFinder(env_graph=graph, max_path_length=5)
 student = LSTMFinder(graph=graph, emb_size=100, max_path_length=5)
 
-optimizer = tf.train.AdamOptimizer(5e-4)
+optimizer = tf.optimizers.Adam(5e-4)
+checkpoint_dir = 'checkpoints/'
 
 print(tf.config.experimental.list_physical_devices("CPU"))
+
+print('eager mode: {}'.format(tf.executing_eagerly()))
 
 teacher_samples = graph.samples_of(task, "train", "+")
 
@@ -42,7 +42,7 @@ for episode in teacher_samples:
         to_id=episode['to_id'],
         width=teacher_path_count
     )
-    if time.time() - start_time < 0.5:
+    if time.time() - start_time < 5:
         quick_samples.append(episode)
         quick_samples_states.append(states)
     else:
@@ -50,10 +50,10 @@ for episode in teacher_samples:
 
 for i in range(teacher_epoch):
     print('teacher epoch: {} started!, samples: {}'.format(i, len(teacher_samples)))
-    avg_diff = 0.0
+    probs = []
     count = 0
+    start_time = time.time()
     for index, episode in enumerate(quick_samples):
-        start_time = time.time()
 
         teacher_states = quick_samples_states[index]
 
@@ -75,18 +75,27 @@ for i in range(teacher_epoch):
                         pre_state=student_state
                     )
 
-                    diff = loss.one_hot(label_action, student_action_probs, 1)
-                    gradient = tape.gradient(diff, student.trainable_variables)
+                    neg_log_prob = loss.one_hot(label_action, student_action_probs, 1)
+                    gradient = tape.gradient(neg_log_prob, student.trainable_variables)
                     optimizer.apply_gradients(zip(gradient, student.trainable_variables))
 
-                    avg_diff = avg_diff + diff
-                    count = count + 1
+                    probs.append(student_action_probs[label_action])
 
                 student_state = updated_state
 
         end_time = time.time()
         # print('time for episode: {} is {}'.format(episode, end_time - start_time))
 
-    print('epoch: {} finished! avg prob is {}'.format(i, math.pow(2, -1 * avg_diff / count)))
+    np_probs = np.array(probs)
+    print('epoch: {} finished in {:.2f} seconds, prob stats: max:{:.4f}, min:{:.4f}, avg: {:.4f}'.format(
+        i + 1,
+        time.time() - start_time,
+        np.max(np_probs),
+        np.min(np_probs),
+        np.average(np_probs)
+    ))
+
+    if epoch % 2 == 0:
+        student.save_weights(checkpoint_dir + 'student')
 
 print('pre-train finished!')
