@@ -39,8 +39,12 @@ class CNNReasoner(tf.keras.Model):
     def relation_of_path(self, path):
         # 输入
         input_mat = []
-        for i in range(1, len(path), 2):
-            input_mat.append(np.concatenate((self.graph.vec_of_rel(path[i]), self.graph.vec_of_ent(path[i + 1]))))
+        for i in range(1, self.max_path_length * 2 + 1, 2):
+            if i < len(path):
+                input_mat.append(np.concatenate((self.graph.vec_of_rel(path[i]), self.graph.vec_of_ent(path[i + 1]))))
+            else:
+                input_mat.append(np.zeros(self.input_width, dtype='f4'))
+
         cnn_input = np.expand_dims(np.array(input_mat), axis=0)
 
         # 计算特征

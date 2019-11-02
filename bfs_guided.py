@@ -12,10 +12,9 @@ from pathfinder.bfsfinder import BFSFinder
 from pathfinder.finderstate import FinderState
 from pathfinder.lstmfinder import LSTMFinder
 
-teacher_epoch = 25
-teacher_path_count = 3
+teacher_epoch = 30
+teacher_path_count = 5
 max_path_length = 5
-epoch = 10
 task = 'concept:athletehomestadium'
 graph = Graph('graph.db')
 graph.prohibit_relation(task)
@@ -27,15 +26,13 @@ student = LSTMFinder(graph=graph, emb_size=100, max_path_length=5)
 optimizer = tf.optimizers.Adam(5e-4)
 checkpoint_dir = 'checkpoints/'
 
-print(tf.config.experimental.list_physical_devices("CPU"))
-
 print('eager mode: {}'.format(tf.executing_eagerly()))
 
 teacher_samples = graph.samples_of(task, "train", "+")
 
 quick_samples = []
 quick_samples_states = []
-for episode in teacher_samples[:10]:
+for episode in teacher_samples:
     start_time = time.time()
     states = teacher.paths_between(
         from_id=episode['from_id'],
@@ -49,15 +46,13 @@ for episode in teacher_samples[:10]:
         print('skipped episode: {} for long search time!'.format(episode))
 
 for i in range(teacher_epoch):
-    print('teacher epoch: {} started!, samples: {}'.format(i, len(teacher_samples)))
+    print('teacher epoch: {} started!, samples: {}'.format(i + 1, len(teacher_samples)))
     probs = []
     count = 0
     start_time = time.time()
     for index, episode in enumerate(quick_samples):
 
         teacher_states = quick_samples_states[index]
-
-        # print('episode:{} takes {}s by BFS'.format(episode, time.time() - start_time))
 
         for teacher_state in teacher_states:
             student_state = student.initial_state(episode['from_id'])
@@ -92,7 +87,7 @@ for i in range(teacher_epoch):
         np.average(np_probs)
     ))
 
-    # if epoch % 2 == 0:
-    # student.save_weights(checkpoint_dir + 'student')
+    if i % 2 == 0:
+        student.save_weights(checkpoint_dir + 'student')
 
 print('pre-train finished!')

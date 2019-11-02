@@ -17,10 +17,7 @@ class BFSFinder(object):
         if id_in_path is None:
             id_in_path = ()
 
-        candidates = []
-        for neighbor in self.graph.neighbors_of(from_id):
-            if neighbor.to_id not in id_in_path:
-                candidates.append(neighbor)
+        candidates = self.graph.neighbors_of(from_id)
 
         for index, neighbor in enumerate(candidates):
             if neighbor.to_id == to_id:
@@ -66,8 +63,8 @@ if __name__ == "__main__":
     graph = Graph(test_graph_db)
     graph.prohibit_relation('concept:athletehomestadium')
     start_time = time.time()
-    ep_start = 27414
-    ep_end = 59928
-    paths = BFSFinder(graph, 5).paths_between(from_id=ep_start, to_id=ep_end, width=5)
+    ep_start = 32116
+    ep_end = 54998
+    paths = BFSFinder(graph, 7).paths_between(from_id=ep_start, to_id=ep_end, width=5)
     print(str(paths))
     print('from {} to {} takes {}s'.format(ep_start, ep_end, time.time() - start_time))

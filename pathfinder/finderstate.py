@@ -1,7 +1,6 @@
 class FinderState(object):
     def __init__(self, path_step, action_chosen=None,
                  history_state=None, action_prob=None,
-                 tape=None,
                  pre_state=None, post_state=None):
 
         if pre_state is None and post_state is None:
@@ -19,21 +18,17 @@ class FinderState(object):
             else:
                 self.action_chosen = ()
 
-            self.tapes = ()
-
         if pre_state is not None:
             self.path = pre_state.path + path_step
             self.entities = pre_state.entities + (path_step[1],)
             self.action_probs = pre_state.action_probs + (action_prob,)
             self.action_chosen = pre_state.action_chosen + (action_chosen,)
-            self.tapes = pre_state.tapes + (tape,)
 
         if post_state is not None:
             self.path = path_step + post_state.path
             self.entities = (path_step[1],) + post_state.entities
             self.action_probs = (action_prob,) + post_state.action_probs
             self.action_chosen = (action_chosen,) + post_state.action_chosen
-            self.tapes = (tape,) + post_state.tapes
 
         self.history_state = history_state
 
