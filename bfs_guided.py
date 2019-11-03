@@ -12,7 +12,7 @@ from pathfinder.bfsfinder import BFSFinder
 from pathfinder.finderstate import FinderState
 from pathfinder.lstmfinder import LSTMFinder
 
-teacher_epoch = 30
+teacher_epoch = 50
 teacher_path_count = 5
 max_path_length = 5
 task = 'concept:athletehomestadium'
@@ -23,7 +23,7 @@ rel_emb = graph.vec_of_rel_name(task)
 teacher = BFSFinder(env_graph=graph, max_path_length=5)
 student = LSTMFinder(graph=graph, emb_size=100, max_path_length=5)
 
-optimizer = tf.optimizers.Adam(5e-4)
+optimizer = tf.optimizers.Adam(1e-3)
 checkpoint_dir = 'checkpoints/'
 
 print('eager mode: {}'.format(tf.executing_eagerly()))
