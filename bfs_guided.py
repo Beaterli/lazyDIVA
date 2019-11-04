@@ -20,15 +20,15 @@ graph = Graph('graph.db')
 graph.prohibit_relation(task)
 rel_emb = graph.vec_of_rel_name(task)
 
-teacher = BFSFinder(env_graph=graph, max_path_length=5)
-student = LSTMFinder(graph=graph, emb_size=100, max_path_length=5)
+teacher = BFSFinder(env_graph=graph, max_path_length=max_path_length)
+student = LSTMFinder(graph=graph, emb_size=100, max_path_length=max_path_length)
 
 optimizer = tf.optimizers.Adam(1e-3)
 checkpoint_dir = 'checkpoints/'
 
 print('eager mode: {}'.format(tf.executing_eagerly()))
 
-teacher_samples = graph.samples_of(task, "train", "+")
+teacher_samples = graph.samples_of(task, "train", "+")[:5]
 
 quick_samples = []
 quick_samples_states = []
@@ -56,15 +56,20 @@ for i in range(teacher_epoch):
 
         for teacher_state in teacher_states:
             student_state = student.initial_state(episode['from_id'])
+            path = teacher_state.path
 
-            for label_action in teacher_state.action_chosen:
+            for step_index in range(len(path) - 1):
+                label_action = list(
+                    map(lambda link: link.to_id, graph.neighbors_of(path[step_index]))
+                ).index(path[step_index + 1])
+
                 with tf.GradientTape() as tape:
                     candidates, student_action_probs, history_state \
                         = student.available_action_probs(student_state, rel_emb)
                     neg_log_prob = loss.one_hot(label_action, student_action_probs, 1)
 
                 student_state = FinderState(
-                    path_step=candidates[label_action].to_tuple(),
+                    path_step=candidates[label_action].to_list(),
                     history_state=history_state,
                     action_prob=student_action_probs,
                     action_chosen=label_action,

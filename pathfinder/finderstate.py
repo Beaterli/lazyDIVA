@@ -4,31 +4,39 @@ class FinderState(object):
                  pre_state=None, post_state=None):
 
         if pre_state is None and post_state is None:
-            if isinstance(path_step, tuple):
+            if isinstance(path_step, list):
                 self.path = path_step
-                self.entities = (path_step[1],)
+                self.entities = [path_step[1]]
             else:
-                self.path = (path_step,)
-                self.entities = (path_step,)
+                self.path = [path_step]
+                self.entities = [path_step]
 
-            self.action_probs = ()
+            self.action_probs = []
 
             if action_chosen is not None:
-                self.action_chosen = (action_chosen,)
+                self.action_chosen = [action_chosen]
             else:
-                self.action_chosen = ()
+                self.action_chosen = []
+
+            self.history_state = history_state
+            return
+
+        if len(path_step) == 2:
+            new_ent = path_step[1]
+        else:
+            new_ent = path_step[0]
 
         if pre_state is not None:
             self.path = pre_state.path + path_step
-            self.entities = pre_state.entities + (path_step[1],)
-            self.action_probs = pre_state.action_probs + (action_prob,)
-            self.action_chosen = pre_state.action_chosen + (action_chosen,)
+            self.entities = pre_state.entities + [new_ent]
+            self.action_probs = pre_state.action_probs + [action_prob]
+            self.action_chosen = pre_state.action_chosen + [action_chosen]
 
         if post_state is not None:
             self.path = path_step + post_state.path
-            self.entities = (path_step[1],) + post_state.entities
-            self.action_probs = (action_prob,) + post_state.action_probs
-            self.action_chosen = (action_chosen,) + post_state.action_chosen
+            self.entities = [new_ent] + post_state.entities
+            self.action_probs = [action_prob] + post_state.action_probs
+            self.action_chosen = [action_chosen] + post_state.action_chosen
 
         self.history_state = history_state
 

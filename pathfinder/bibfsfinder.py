@@ -9,9 +9,10 @@ class BFSFinder(object):
         self.graph = env_graph
         self.max_path_length = max_path_length
 
-    def paths_between(self, from_id, to_id, width=5, depth=0, id_in_path=None):
+    def paths_between(self, from_id, to_id, width=5, path_length=0, id_in_path=None):
+
         states = []
-        if depth == self.max_path_length:
+        if path_length >= self.max_path_length:
             return states
 
         if id_in_path is None:
@@ -22,8 +23,7 @@ class BFSFinder(object):
         for index, neighbor in enumerate(candidates):
             if neighbor.to_id == to_id:
                 return [FinderState(
-                    path_step=[from_id, to_id],
-                    action_chosen=index
+                    path_step=[from_id, to_id]
                 )]
 
         for index, neighbor in enumerate(candidates):
@@ -33,22 +33,23 @@ class BFSFinder(object):
             if neighbor.to_id in id_in_path:
                 continue
 
-            postfix_states = self.paths_between(
-                from_id=neighbor.to_id,
-                to_id=to_id,
+            reverse_states = self.paths_between(
+                from_id=to_id,
+                to_id=neighbor.to_id,
                 width=width,
-                depth=depth + 1,
+                path_length=path_length + 1,
                 id_in_path=id_in_path + (from_id,)
             )
-            if len(postfix_states) == 0:
+            if len(reverse_states) == 0:
                 continue
 
-            roof = min(width - len(states), len(postfix_states))
+            roof = min(width - len(states), len(reverse_states))
             for i in range(0, roof):
+                reverse_state = reverse_states[i]
+                reverse_state.path.reverse()
                 states.append(FinderState(
                     path_step=[from_id],
-                    action_chosen=index,
-                    post_state=postfix_states[i]
+                    post_state=reverse_state
                 ))
 
         return states

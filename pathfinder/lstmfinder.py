@@ -138,7 +138,7 @@ class LSTMFinder(tf.keras.Model):
                 state_index = chosen_to_pos[action_chosen][0]
                 candidate_index = chosen_to_pos[action_chosen][1]
                 new_state = FinderState(
-                    path_step=all_candidates[state_index][candidate_index].to_tuple(),
+                    path_step=all_candidates[state_index][candidate_index].to_list(),
                     history_state=history_states[state_index],
                     action_prob=action_probs[state_index],
                     action_chosen=candidate_index,

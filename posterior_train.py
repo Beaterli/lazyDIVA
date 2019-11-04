@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import random
 import time
 
 import numpy as np
@@ -12,7 +13,7 @@ from pathfinder.finderstate import FinderState
 from pathfinder.lstmfinder import LSTMFinder
 from pathreasoner.cnn_reasoner import CNNReasoner
 
-epoch = 10
+epoch = 25
 task = 'concept:athletehomestadium'
 graph = Graph('graph.db')
 graph.prohibit_relation(task)
@@ -39,15 +40,18 @@ def reason_loss(relation, expected_label):
     return tf.reduce_sum(cross_ent, axis=[0])
 
 
-# train_samples = graph.samples_of(task, "train", "+")[1:100]
-train_samples = graph.train_samples_of(task)[1:100]
-# train_samples = [{
-#     'from_id': 71675,
-#     'to_id': 3749,
-#     'type': '+'
-# }]
+positive_samples = graph.samples_of(task, "train", "+")[1:800]
+negative_samples = graph.samples_of(task, "train", "-")[1:800]
+train_samples = positive_samples + negative_samples
+random.shuffle(train_samples)
 test_samples = graph.test_samples_of(task)
+# train_samples = [{
+#     'from_id': 37036,
+#     'to_id': 68461,
+#     'type': '-'
+# }]
 rel_emb = graph.vec_of_rel_name(task)
+search_failure_reward = -0.05
 for i in range(epoch):
     print('epoch: {} started!, samples: {}'.format(i, len(train_samples)))
     for index, episode in enumerate(train_samples):
@@ -63,8 +67,8 @@ for i in range(epoch):
 
         # 训练likelihood, 计算奖励
         for state in path_states:
-            if not state.path[-1] == episode['to_id']:
-                rewards.append(-1)
+            if state.path[-1] != episode['to_id']:
+                rewards.append(search_failure_reward)
                 continue
 
             with tf.GradientTape() as likelihood_tape:
@@ -76,6 +80,7 @@ for i in range(epoch):
 
         for path_index, state in enumerate(path_states):
             reward = rewards[path_index]
+
             playback_state = path_finder.initial_state(episode['from_id'])
 
             for taken_action in state.action_chosen:
@@ -88,7 +93,7 @@ for i in range(epoch):
                     print('action outside of candidates, state: {}'.format(state))
 
                 playback_state = FinderState(
-                    path_step=candidates[taken_action].to_tuple(),
+                    path_step=candidates[taken_action].to_list(),
                     history_state=history_state,
                     action_prob=action_probs,
                     action_chosen=taken_action,
@@ -106,7 +111,7 @@ for i in range(epoch):
             avg_reward = np.average(good_rewards)
         print('time for an episode: {:.2f}s'.format(end_time - start_time))
         print('bad paths: {}, avg good loss: {}'.format(
-            rewards.count(-1),
+            rewards.count(search_failure_reward),
             avg_reward
         ))
 
