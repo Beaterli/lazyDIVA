@@ -1,1 +1,2 @@
-from . import bfsfinder, lstmfinder, finderstate
+from pathfinder.brute import dfsfinder
+from . import lstmfinder, finderstate

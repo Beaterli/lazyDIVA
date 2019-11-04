@@ -1,10 +1,7 @@
-import time
-
-from graph.graph import Graph
 from pathfinder.finderstate import FinderState
 
 
-class BFSFinder(object):
+class BiDFSFinder(object):
     def __init__(self, env_graph, max_path_length):
         self.graph = env_graph
         self.max_path_length = max_path_length
@@ -53,15 +50,3 @@ class BFSFinder(object):
                 ))
 
         return states
-
-
-if __name__ == "__main__":
-    test_graph_db = 'graph.db'
-    graph = Graph(test_graph_db)
-    graph.prohibit_relation('concept:athletehomestadium')
-    start_time = time.time()
-    ep_start = 13188
-    ep_end = 24050
-    paths = BFSFinder(graph, 5).paths_between(from_id=ep_start, to_id=ep_end, width=5)
-    print(str(paths))
-    print('from {} to {} takes {}s'.format(ep_start, ep_end, time.time() - start_time))

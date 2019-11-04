@@ -50,6 +50,24 @@ class Graph(object):
     def train_samples_of(self, relation_text):
         return self.samples_of(relation_text, "train")
 
+    def negative_train_samples_of(self, relation_text):
+        samples = []
+
+        sql = '''select from_id, to_id, "type" from samples 
+                where rid = (select rid from relations where relation = ?) 
+                and stage = ? 
+                and type = ?
+                group by from_id'''
+        params = [relation_text, 'train', '-']
+
+        for row in self.conn.execute(sql, params):
+            samples.append({
+                'from_id': row[0],
+                'to_id': row[1],
+                'type': row[2]
+            })
+        return samples
+
     def test_samples_of(self, relation_text):
         return self.samples_of(relation_text, "test")
 
