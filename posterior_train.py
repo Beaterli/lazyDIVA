@@ -39,13 +39,6 @@ posterior_chkpt_file = 'checkpoints/posterior_fine'
 likelihood_checkpoint = tf.train.Checkpoint(optimizer=likelihood_optimizer, model=path_reasoner)
 likelihood_chkpt_file = 'checkpoints/likelihood'
 
-
-def reason_loss(relation, expected_label):
-    cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=relation, labels=expected_label)
-    # 分类结果熵向量求和
-    return tf.reduce_sum(cross_ent, axis=[0])
-
-
 positive_samples = graph.samples_of(task, "train", "+")
 negative_samples = graph.negative_train_samples_of(task)
 train_samples = positive_samples + negative_samples
@@ -84,12 +77,12 @@ def train_episode(episode):
             rewards.append(search_failure_reward)
             continue
 
-        with tf.GradientTape() as likelihood_tape:
-            classify_loss = reason_loss(path_reasoner.relation_of_path(state.path), label)
-
-        gradient = likelihood_tape.gradient(classify_loss, path_reasoner.trainable_variables)
+        # 分类损失为0-1
+        classify_loss, gradient = path_reasoner.learn_from_label(state.path, label)
         likelihood_optimizer.apply_gradients(zip(gradient, path_reasoner.trainable_variables))
-        rewards.append(classify_loss)
+
+        # 需要反转分类损失作为路径搜索奖励
+        rewards.append(1.0 - classify_loss)
 
     for path_index, state in enumerate(path_states):
         reward = rewards[path_index]
@@ -123,7 +116,7 @@ def train_episode(episode):
     else:
         avg_reward = np.average(good_rewards)
     print('time for an episode: {:.2f}s'.format(end_time - start_time))
-    print('bad paths: {}, avg good loss: {}'.format(
+    print('bad paths: {}, avg good reward: {}'.format(
         rewards.count(search_failure_reward),
         avg_reward
     ))

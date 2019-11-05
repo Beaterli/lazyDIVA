@@ -9,10 +9,8 @@ import numpy as np
 # Import TensorFlow >= 1.9 and enable eager execution
 import tensorflow as tf
 
-import loss
 from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
-from pathfinder.finderstate import FinderState
 from pathfinder.lstmfinder import LSTMFinder
 
 teacher_epoch = 50
@@ -60,40 +58,13 @@ def search(samples):
 
 
 def learn_episode(episode):
-    probs = []
     if episode['type'] == '+':
         rel_emb = positive_emb
     else:
         rel_emb = negative_emb
-
-    for teacher_state in episode['states']:
-        student_state = student.initial_state(episode['from_id'])
-        path = teacher_state.path
-
-        for step_index in range(1, len(path), 2):
-            with tf.GradientTape() as tape:
-                candidates, student_action_probs, history_state \
-                    = student.available_action_probs(student_state, rel_emb)
-
-                for index in range(len(candidates)):
-                    if candidates[index].rel_id == path[step_index] \
-                            and candidates[index].to_id == path[step_index + 1]:
-                        mask = index
-                        break
-
-                neg_log_prob = loss.one_hot(mask, student_action_probs, 1)
-
-            student_state = FinderState(
-                path_step=candidates[mask].to_list(),
-                history_state=history_state,
-                action_prob=student_action_probs,
-                action_chosen=mask,
-                pre_state=student_state
-            )
-            gradient = tape.gradient(neg_log_prob, student.trainable_variables)
-            optimizer.apply_gradients(zip(gradient, student.trainable_variables))
-            probs.append(student_action_probs[mask])
-
+    probs, gradients = student.learn_from_teacher(episode, rel_emb)
+    for gradient in gradients:
+        optimizer.apply_gradients(zip(gradient, student.trainable_variables))
     return probs
 
 
