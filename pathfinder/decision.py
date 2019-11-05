@@ -1,6 +1,14 @@
 import numpy as np
 
 
+def index_of(candidates, rel_id, ent_id):
+    for index in range(len(candidates)):
+        if candidates[index].rel_id == rel_id \
+                and candidates[index].to_id == ent_id:
+            return index
+    return -1
+
+
 def pick_top_n(probs, top_n, precision=4):
     action_space = np.arange(len(probs))
 

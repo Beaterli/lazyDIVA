@@ -6,7 +6,9 @@ class FinderState(object):
         if pre_state is None and post_state is None:
             if isinstance(path_step, list):
                 self.path = path_step
-                self.entities = [path_step[1]]
+                self.entities = []
+                for i in range(0, len(self.path), 2):
+                    self.entities.append(self.path[i])
             else:
                 self.path = [path_step]
                 self.entities = [path_step]

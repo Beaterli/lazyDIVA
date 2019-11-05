@@ -3,7 +3,7 @@ import tensorflow as tf
 import loss
 
 from pathfinder.finderstate import FinderState
-from pathfinder.decision import pick_top_n
+from pathfinder.decision import pick_top_n, index_of
 
 
 class LSTMFinder(tf.keras.Model):
@@ -151,36 +151,29 @@ class LSTMFinder(tf.keras.Model):
 
         return finished + states
 
-    def learn_from_teacher(self, episode, rel_emb):
+    def learn_from_teacher(self, path, rel_emb, reward):
         probs = []
         gradients = []
 
-        for teacher_state in episode['states']:
-            student_state = self.initial_state(episode['from_id'])
-            path = teacher_state.path
+        student_state = self.initial_state(path[0])
+        for step_index in range(1, len(path), 2):
+            with tf.GradientTape() as tape:
+                candidates, student_action_probs, history_state \
+                    = self.available_action_probs(student_state, rel_emb)
 
-            for step_index in range(1, len(path), 2):
-                with tf.GradientTape() as tape:
-                    candidates, student_action_probs, history_state \
-                        = self.available_action_probs(student_state, rel_emb)
+                action_index = index_of(candidates, path[step_index], path[step_index + 1])
 
-                    for index in range(len(candidates)):
-                        if candidates[index].rel_id == path[step_index] \
-                                and candidates[index].to_id == path[step_index + 1]:
-                            mask = index
-                            break
+                neg_log_prob = loss.one_hot(action_index, student_action_probs, reward)
 
-                    neg_log_prob = loss.one_hot(mask, student_action_probs, 1)
-
-                student_state = FinderState(
-                    path_step=candidates[mask].to_list(),
-                    history_state=history_state,
-                    action_prob=student_action_probs,
-                    action_chosen=mask,
-                    pre_state=student_state
-                )
-                gradients.append(tape.gradient(neg_log_prob, self.trainable_variables))
-                probs.append(student_action_probs[mask])
+            gradients.append(tape.gradient(neg_log_prob, self.trainable_variables))
+            student_state = FinderState(
+                path_step=candidates[action_index].to_list(),
+                history_state=history_state,
+                action_prob=student_action_probs,
+                action_chosen=action_index,
+                pre_state=student_state
+            )
+            probs.append(student_action_probs[action_index])
 
         return probs, gradients
 
