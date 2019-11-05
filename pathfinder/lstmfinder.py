@@ -151,7 +151,7 @@ class LSTMFinder(tf.keras.Model):
 
         return finished + states
 
-    def learn_from_teacher(self, path, rel_emb, reward):
+    def learn_from_teacher(self, path, reward, rel_emb=None):
         probs = []
         gradients = []
 
