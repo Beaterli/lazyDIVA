@@ -150,7 +150,6 @@ random.shuffle(train_samples)
 train_samples = train_samples[:300]
 print('using {} train samples'.format(len(train_samples)))
 
-test_samples = graph.test_samples_of(task)
 # train_samples = [{
 #     'from_id': 37036,
 #     'to_id': 68461,
