@@ -27,16 +27,19 @@ def load_latest_with_priority(
 ):
     first = latest_checkpoint_file(first_path, first_name)
     if first is not None:
+        print('loading checkpoint from primary {}'.format(first_path + first))
         checkpoint.restore(first_path + first)
         return
     second = latest_checkpoint_file(second_path, second_name)
     if second is not None:
+        print('loading checkpoint from secondary {}'.format(second_path + second))
         checkpoint.restore(second_path + second)
 
 
 def load_latest_if_exists(checkpoint, path, name):
     file = latest_checkpoint_file(path, name)
     if file is not None:
+        print('loading checkpoint from {}'.format(path + file))
         checkpoint.restore(path + file)
 
 

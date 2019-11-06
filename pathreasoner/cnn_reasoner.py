@@ -59,10 +59,23 @@ class CNNReasoner(tf.keras.Model):
         probabilities = self.classifier(concat_feature)
         return probabilities[0]
 
-    def learn_from_label(self, path, label):
+    def learn_from_path(self, path, label):
         with tf.GradientTape() as tape:
             relation = self.relation_of_path(path)
-            cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=relation, labels=label)
+            cross_ent = tf.nn.softmax_cross_entropy_with_logits(logits=[relation], labels=[label])
+            # 分类结果熵向量求和
+            classify_loss = tf.reduce_mean(cross_ent)
+
+        return classify_loss, tape.gradient(classify_loss, self.trainable_variables)
+
+    def learn_from_paths(self, paths, label):
+        with tf.GradientTape() as tape:
+            relations = []
+            labels = []
+            for path in paths:
+                relations.append(self.relation_of_path(path))
+                labels.append(label)
+            cross_ent = tf.nn.softmax_cross_entropy_with_logits(logits=relations, labels=labels)
             # 分类结果熵向量求和
             classify_loss = tf.reduce_mean(cross_ent, axis=[0])
 

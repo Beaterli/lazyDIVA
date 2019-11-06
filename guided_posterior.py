@@ -1,17 +1,17 @@
 from __future__ import absolute_import, division, print_function
 
-import time
 import random
+import time
 
 import numpy as np
 # Import TensorFlow >= 1.9 and enable eager execution
 import tensorflow as tf
 
+import episodes
 from graph.graph import Graph
 from pathfinder.lstmfinder import LSTMFinder
-import episodes
 
-teacher_epoch = 0
+teacher_epoch = 25
 teacher_path_count = 5
 max_path_length = 5
 task = 'concept:athletehomestadium'
@@ -55,7 +55,7 @@ def learn_epoch(round, episodes):
         np.average(np_probs)
     ))
 
-    if round % 2 == 0:
+    if round % 5 == 0:
         checkpoint.save(chkpt_file)
 
 
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     negative_emb = np.zeros(emb_size, dtype='f4')
 
     student = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
-    optimizer = tf.optimizers.Adam(1e-3)
+    optimizer = tf.optimizers.Adam(2e-3)
     checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=student)
 
     chkpt_file = 'checkpoints/guided_posterior/posterior'
@@ -75,8 +75,10 @@ if __name__ == '__main__':
 
     samples = episodes.all_episodes()
     random.shuffle(samples)
-    print('guided learning started')
+    # samples = samples[:500]
+    print('guided learning started! using {} samples'.format(len(samples)))
     for i in range(teacher_epoch):
         learn_epoch(i, samples)
 
+    checkpoint.save(chkpt_file)
     print('pre-train finished!')

@@ -4,11 +4,11 @@ import random
 import time
 
 import numpy as np
-import episodes as eps
-import checkpoints as chk
 # Import TensorFlow >= 1.9 and enable eager execution
 import tensorflow as tf
 
+import checkpoints as chk
+import episodes as eps
 import loss
 from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
@@ -37,7 +37,7 @@ likelihood_optimizer = tf.optimizers.Adam(1e-4)
 # 使用SGD避免训练失败
 posterior_optimizer = tf.optimizers.SGD(1e-2)
 # 使用Adam提升学习速度
-prior_optimizer = tf.optimizers.Adam(1e-3)
+prior_optimizer = tf.optimizers.Adam(2e-3)
 
 posterior_chkpt_file = 'checkpoints/unified/posterior_fine'
 posterior_checkpoint = tf.train.Checkpoint(model=posterior)
@@ -64,7 +64,6 @@ chk.load_latest_if_exists(
 
 # 搜索失败时重新训练
 def teach_posterior(from_id, to_id):
-    print('reteaching posterior')
     episode = eps.find_episode(from_id, to_id)
 
     if episode['type'] == '+':
@@ -106,10 +105,8 @@ def train_posterior(positive, negative, rel_emb):
 
 # 训练likelihood
 def train_likelihood(paths, label):
-    for path in paths:
-        # 分类损失为0.0-1.0
-        classify_loss, gradient = path_reasoner.learn_from_label(path, label)
-        likelihood_optimizer.apply_gradients(zip(gradient, path_reasoner.trainable_variables))
+    classify_loss, gradient = path_reasoner.learn_from_paths(paths, label)
+    likelihood_optimizer.apply_gradients(zip(gradient, path_reasoner.trainable_variables))
 
 
 # 训练prior
@@ -142,7 +139,7 @@ def rollout_episode(episode, rel_emb, label):
             continue
 
         # 需要反转分类损失作为路径搜索奖励
-        classify_loss, gradient = path_reasoner.learn_from_label(state.path, label)
+        classify_loss, gradient = path_reasoner.learn_from_path(state.path, label)
         positive_results.append((1.0 - classify_loss, state.path))
 
     return positive_results, negative_results
@@ -150,7 +147,7 @@ def rollout_episode(episode, rel_emb, label):
 
 train_samples = eps.all_episodes()
 random.shuffle(train_samples)
-train_samples = train_samples[:100]
+train_samples = train_samples[:300]
 print('using {} train samples'.format(len(train_samples)))
 
 test_samples = graph.test_samples_of(task)
@@ -167,6 +164,7 @@ for i in range(epoch * 3):
     epoch_start = time.time()
     all_loss = np.zeros(0)
     stage = i % 3
+    teacher_rounds = 0
 
     for index, sample in enumerate(train_samples):
         label = loss.type_to_label(sample['type'])
@@ -176,7 +174,7 @@ for i in range(epoch * 3):
             rel_emb = negative_rel_emb
 
         positive, negative = rollout_episode(sample, rel_emb, label)
-        all_loss = np.concatenate((all_loss, list(map(lambda r: 1.0 - r[0], positive))))
+        all_loss = np.concatenate((all_loss, list(map(lambda r: max(1.0 - r[0], 0.05), positive))))
 
         # 训练posterior
         if stage == 0:
@@ -184,8 +182,11 @@ for i in range(epoch * 3):
             # 成功路径过少，需要重新监督学习
             if len(positive) < 2:
                 teach_posterior(sample['from_id'], sample['to_id'])
+                teacher_rounds += 1
         # 训练likelihood
         elif stage == 1:
+            if len(positive) == 0:
+                continue
             paths = list(map(lambda r: r[1], positive))
             train_likelihood(paths, label)
         # 训练prior
@@ -194,20 +195,24 @@ for i in range(epoch * 3):
 
     avg_loss = np.average(all_loss)
     min_loss = np.min(all_loss)
-    print('epoch: {} stage: {} takes {:.2f}s, min: {:.4f}, avg: {:.4f}, max: {:.4f}'.format(
+    print('epoch: {} stage: {} takes {:.2f}s, min: {:.4f}, avg: {:.4f}, max: {:.4f}, teaches: {}'.format(
         int(i / 3) + 1,
         stage,
         time.time() - epoch_start,
         np.min(all_loss),
         np.average(all_loss),
-        np.max(all_loss)
+        np.max(all_loss),
+        teacher_rounds
     ))
 
-    if stage == 0:
+    if i % 15 == 12:
         posterior_checkpoint.save(posterior_chkpt_file)
-    elif stage == 1:
+    elif i % 15 == 13:
         likelihood_checkpoint.save(likelihood_chkpt_file)
-    else:
+    elif i % 15 == 14:
         prior_checkpoint.save(prior_chkpt_file)
 
+posterior_checkpoint.save(posterior_chkpt_file)
+likelihood_checkpoint.save(likelihood_chkpt_file)
+prior_checkpoint.save(prior_chkpt_file)
 print('finished!')

@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
-import loss
 
-from pathfinder.finderstate import FinderState
+import loss
 from pathfinder.decision import pick_top_n, index_of
+from pathfinder.finderstate import FinderState
 
 
 class LSTMFinder(tf.keras.Model):
@@ -15,18 +15,43 @@ class LSTMFinder(tf.keras.Model):
         self.history_depth = max_path_length
         self.emb_size = emb_size
         self.history_width = 2 * emb_size
-        self.history_stack = tf.keras.layers.LSTMCell(self.history_width)
+        self.history_stack = tf.keras.layers.LSTMCell(
+            units=self.history_width,
+            kernel_regularizer=tf.keras.regularizers.l2(),
+            bias_regularizer=tf.keras.regularizers.l2(),
+            recurrent_regularizer=tf.keras.regularizers.l2()
+        )
         if prior:
             self.mlp = tf.keras.Sequential([
                 tf.keras.layers.InputLayer(input_shape=(1, self.history_width + 1 * emb_size)),
-                tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu),
-                tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu)
+                tf.keras.layers.Dense(
+                    units=2 * emb_size,
+                    activation=tf.nn.relu,
+                    kernel_regularizer=tf.keras.regularizers.l2(),
+                    bias_regularizer=tf.keras.regularizers.l2()
+                ),
+                tf.keras.layers.Dense(
+                    units=2 * emb_size,
+                    activation=tf.nn.relu,
+                    kernel_regularizer=tf.keras.regularizers.l2(),
+                    bias_regularizer=tf.keras.regularizers.l2()
+                )
             ])
         else:
             self.mlp = tf.keras.Sequential([
                 tf.keras.layers.InputLayer(input_shape=(1, self.history_width + 2 * emb_size)),
-                tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu),
-                tf.keras.layers.Dense(2 * emb_size, activation=tf.nn.relu)
+                tf.keras.layers.Dense(
+                    2 * emb_size,
+                    activation=tf.nn.relu,
+                    kernel_regularizer=tf.keras.regularizers.l2(),
+                    bias_regularizer=tf.keras.regularizers.l2()
+                ),
+                tf.keras.layers.Dense(
+                    2 * emb_size,
+                    activation=tf.nn.relu,
+                    kernel_regularizer=tf.keras.regularizers.l2(),
+                    bias_regularizer=tf.keras.regularizers.l2()
+                )
             ])
 
     def initial_state(self, from_id):
