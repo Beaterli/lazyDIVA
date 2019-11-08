@@ -32,7 +32,6 @@ class GraphConv(tf.keras.layers.Layer):
 
         self.w = self.add_weight(
             name='neighbor_weights',
-            dtype=dtype,
             shape=(self.neighbors + 1, output_feature_dim),
             initializer='glorot_uniform',
             trainable=True
@@ -40,7 +39,8 @@ class GraphConv(tf.keras.layers.Layer):
 
         if self.use_bias:
             self.b = self.add_weight(
-                shape=(self.out_feature_dim,),
+                name='output_bias',
+                shape=(output_feature_dim,),
                 initializer='zeros',
                 trainable=True
             )

@@ -18,8 +18,9 @@ def learn_from_paths(reasoner, paths, label):
         for path in paths:
             relations.append(reasoner.relation_of_path(path))
             labels.append(label)
-        cross_ent = tf.nn.softmax_cross_entropy_with_logits(logits=relations, labels=labels)
         # 分类结果熵向量求和
+        cross_ent = tf.nn.softmax_cross_entropy_with_logits(logits=relations, labels=labels)
+        # 损失求平均
         classify_loss = tf.reduce_mean(cross_ent, axis=[0])
 
     return classify_loss, tape.gradient(classify_loss, reasoner.trainable_variables)

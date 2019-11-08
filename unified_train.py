@@ -21,7 +21,7 @@ epoch = 25
 emb_size = 100
 rollouts = 5
 max_path_length = 5
-samples_count = 20
+samples_count = 5
 
 task = 'concept:athletehomestadium'
 graph = Graph('graph.db')
@@ -35,13 +35,15 @@ teacher = BFSFinder(env_graph=graph, max_path_length=max_path_length)
 posterior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=False)
 prior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=True)
 # path_reasoner = CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
-path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=99)
+path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=25)
 
-likelihood_optimizer = tf.optimizers.Adam(1e-4)
+likelihood_optimizer = tf.optimizers.Adam(3e-5)
 # 使用SGD避免训练失败
 posterior_optimizer = tf.optimizers.SGD(1e-2)
 # 使用Adam提升学习速度
 prior_optimizer = tf.optimizers.Adam(2e-3)
+
+save_checkpoint = False
 
 posterior_chkpt_file = 'checkpoints/unified/posterior_fine'
 posterior_checkpoint = tf.train.Checkpoint(model=posterior)
@@ -200,6 +202,9 @@ for i in range(epoch * 3):
         teacher_rounds
     ))
 
+    if not save_checkpoint:
+        continue
+
     if i % 15 == 12:
         posterior_checkpoint.save(posterior_chkpt_file)
     elif i % 15 == 13:
@@ -207,7 +212,8 @@ for i in range(epoch * 3):
     elif i % 15 == 14:
         prior_checkpoint.save(prior_chkpt_file)
 
-posterior_checkpoint.save(posterior_chkpt_file)
-likelihood_checkpoint.save(likelihood_chkpt_file)
-prior_checkpoint.save(prior_chkpt_file)
+if save_checkpoint:
+    posterior_checkpoint.save(posterior_chkpt_file)
+    likelihood_checkpoint.save(likelihood_chkpt_file)
+    prior_checkpoint.save(prior_chkpt_file)
 print('finished!')
