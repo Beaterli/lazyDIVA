@@ -19,12 +19,12 @@ class LSTMFinder(tf.keras.Model):
             kernel_regularizer=tf.keras.regularizers.l2(),
             bias_regularizer=tf.keras.regularizers.l2(),
             recurrent_regularizer=tf.keras.regularizers.l2(),
-            dtype='f4'
+            dtype=tf.float32
         )
         if prior:
             self.mlp = tf.keras.Sequential([
                 tf.keras.layers.InputLayer(input_shape=(1, self.history_width + 1 * emb_size),
-                                           dtype='f4'),
+                                           dtype=tf.float32),
                 tf.keras.layers.Dense(
                     units=2 * emb_size,
                     activation=tf.nn.relu,
@@ -41,7 +41,7 @@ class LSTMFinder(tf.keras.Model):
         else:
             self.mlp = tf.keras.Sequential([
                 tf.keras.layers.InputLayer(input_shape=(1, self.history_width + 2 * emb_size),
-                                           dtype='f4'),
+                                           dtype=tf.float32),
                 tf.keras.layers.Dense(
                     2 * emb_size,
                     activation=tf.nn.relu,

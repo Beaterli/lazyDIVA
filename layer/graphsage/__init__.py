@@ -1,2 +1,2 @@
-from .aggregate import recursive
+from .aggregate import recursive, directional
 from .layers import GraphConv

@@ -13,26 +13,26 @@ class CNNReasoner(tf.keras.Model):
                 tf.keras.layers.Conv1D(filters=128, kernel_size=1,
                                        input_shape=(max_path_length, self.emb_size * 2),
                                        activation=tf.nn.relu,
-                                       dtype='f4'),
+                                       dtype=tf.float32),
                 tf.keras.layers.MaxPool1D(max_path_length)
             ]),
             tf.keras.Sequential([
                 tf.keras.layers.Conv1D(filters=128, kernel_size=2,
                                        input_shape=(max_path_length, self.emb_size * 2),
                                        activation=tf.nn.relu,
-                                       dtype='f4'),
+                                       dtype=tf.float32),
                 tf.keras.layers.MaxPool1D(max_path_length - 1)
             ]),
             tf.keras.Sequential([
                 tf.keras.layers.Conv1D(filters=128, kernel_size=3,
                                        input_shape=(max_path_length, self.emb_size * 2),
                                        activation=tf.nn.relu,
-                                       dtype='f4'),
+                                       dtype=tf.float32),
                 tf.keras.layers.MaxPool1D(max_path_length - 2)
             ])
         ]
         self.classifier = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(1, 384), dtype='f4'),
+            tf.keras.layers.InputLayer(input_shape=(1, 384), dtype=tf.float32),
             tf.keras.layers.Dense(400, activation=tf.nn.relu),
             tf.keras.layers.Dense(400, activation=tf.nn.relu),
             tf.keras.layers.Dense(2, activation=tf.nn.softmax),

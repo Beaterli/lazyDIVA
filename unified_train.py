@@ -14,8 +14,8 @@ from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
 from pathfinder.learn import learn_from_teacher
 from pathfinder.lstmfinder import LSTMFinder
-from pathreasoner.cnn_reasoner import CNNReasoner
-from pathreasoner.learn import learn_from_paths
+from pathreasoner.graph_sage_reasoner import GraphSAGEReasoner
+from pathreasoner.learn import learn_from_paths, learn_from_path
 
 epoch = 25
 emb_size = 100
@@ -33,7 +33,8 @@ test_set = []
 teacher = BFSFinder(env_graph=graph, max_path_length=max_path_length)
 posterior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=False)
 prior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=True)
-path_reasoner = CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
+# path_reasoner = CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
+path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=99)
 
 likelihood_optimizer = tf.optimizers.Adam(1e-4)
 # 使用SGD避免训练失败
@@ -133,7 +134,7 @@ def rollout_episode(episode, rel_emb, label):
             continue
 
         # 需要反转分类损失作为路径搜索奖励
-        classify_loss, gradient = path_reasoner.learn_from_path(state.path, label)
+        classify_loss, gradient = learn_from_path(path_reasoner, state.path, label)
         positive_results.append((1.0 - classify_loss, state.path))
 
     return positive_results, negative_results

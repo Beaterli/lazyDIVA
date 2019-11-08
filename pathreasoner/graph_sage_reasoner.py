@@ -5,18 +5,24 @@ from layer.graphsage.layers import GraphConv
 
 
 class GraphSAGEReasoner(tf.keras.Model):
-    def __init__(self, graph, emb_size):
+    def __init__(self, graph, emb_size, neighbors):
         super(GraphSAGEReasoner, self).__init__()
         self.graph = graph
         self.emb_size = emb_size
-        self.gcn_aggregator = GraphConv(
-            root_feature_dim=self.emb_size,
-            out_feature_dim=2 * self.emb_size,
-            neighbor_feature_dim=2 * self.emb_size,
-            dtype='f4'
-        )
+        self.primary_aggregator = [
+            GraphConv(
+                input_feature_dim=2 * self.emb_size,
+                output_feature_dim=2 * self.emb_size,
+                neighbors=neighbors,
+                dtype=tf.float32),
+            GraphConv(
+                input_feature_dim=2 * self.emb_size,
+                output_feature_dim=1 * self.emb_size,
+                neighbors=int(neighbors / 2),
+                dtype=tf.float32
+            )]
         self.classifier = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(1, 2 * self.emb_size), dtype='f4'),
+            tf.keras.layers.InputLayer(input_shape=(1, 1 * self.emb_size), dtype=tf.float32),
             tf.keras.layers.Dense(400, activation=tf.nn.relu),
             tf.keras.layers.Dense(400, activation=tf.nn.relu),
             tf.keras.layers.Dense(2, activation=tf.nn.softmax),
@@ -26,10 +32,8 @@ class GraphSAGEReasoner(tf.keras.Model):
     def relation_of_path(self, path):
         path_feature = directional(
             graph=self.graph,
-            aggregator=self.gcn_aggregator,
-            path=path,
-            width=2,
-            max_neighbor=100)
+            aggregators=self.aggregators,
+            path=path)
 
         probabilities = self.classifier(path_feature)
 
