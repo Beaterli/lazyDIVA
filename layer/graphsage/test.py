@@ -8,10 +8,10 @@ if __name__ == '__main__':
     test_graph_db = 'graph.db'
     graph = Graph(test_graph_db)
     graph.prohibit_relation('concept:athletehomestadium')
-    path = [51630, 226, 66781, 63, 28848, 36, 73545]
+    path = [2592, 233, 16987, 275, 19365, 363, 3749]
     primary = GraphConv(
         input_feature_dim=2 * 100,
-        output_feature_dim=2 * 100,
+        output_feature_dim=1 * 100,
         neighbors=19,
         dtype=tf.float32
     )

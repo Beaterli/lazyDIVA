@@ -5,7 +5,7 @@ def recursive(graph, aggregators, root_id, depth=0, skip=(), emb_override={}):
     root_emb = graph.vec_of_ent(root_id)
 
     if depth == len(aggregators):
-        return root_emb
+        return tf.expand_dims(root_emb, axis=0)
 
     if root_id in emb_override:
         return emb_override[root_id]
@@ -29,7 +29,7 @@ def recursive(graph, aggregators, root_id, depth=0, skip=(), emb_override={}):
                 depth + 1,
                 skip + (root_id,),
                 emb_override
-            )], axis=0)
+            )[0]], axis=0)
 
         neighbor_features.append(feature)
 
@@ -67,4 +67,4 @@ def directional(graph, aggregators, path):
             emb_override=emb_override
         )
 
-    return step_feature
+    return step_feature[0]

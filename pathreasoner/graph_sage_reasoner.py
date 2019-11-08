@@ -9,10 +9,10 @@ class GraphSAGEReasoner(tf.keras.Model):
         super(GraphSAGEReasoner, self).__init__()
         self.graph = graph
         self.emb_size = emb_size
-        self.primary_aggregator = [
+        self.aggregators = [
             GraphConv(
                 input_feature_dim=2 * self.emb_size,
-                output_feature_dim=2 * self.emb_size,
+                output_feature_dim=1 * self.emb_size,
                 neighbors=neighbors,
                 dtype=tf.float32),
             GraphConv(
@@ -35,6 +35,6 @@ class GraphSAGEReasoner(tf.keras.Model):
             aggregators=self.aggregators,
             path=path)
 
-        probabilities = self.classifier(path_feature)
+        probabilities = self.classifier(tf.expand_dims(path_feature, axis=0))
 
         return probabilities[0]

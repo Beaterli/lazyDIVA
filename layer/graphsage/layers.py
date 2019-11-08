@@ -96,7 +96,7 @@ class GraphConv(tf.keras.layers.Layer):
         if self.use_bias:
             output += self.b
 
-        return self.act(output)[0]
+        return self.act(output)
 
 
 if __name__ == '__main__':

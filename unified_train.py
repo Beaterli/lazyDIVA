@@ -21,6 +21,7 @@ epoch = 25
 emb_size = 100
 rollouts = 5
 max_path_length = 5
+samples_count = 20
 
 task = 'concept:athletehomestadium'
 graph = Graph('graph.db')
@@ -142,7 +143,7 @@ def rollout_episode(episode, rel_emb, label):
 
 train_samples = eps.all_episodes()
 random.shuffle(train_samples)
-train_samples = train_samples[:300]
+train_samples = train_samples[:samples_count]
 print('using {} train samples'.format(len(train_samples)))
 
 # train_samples = [{

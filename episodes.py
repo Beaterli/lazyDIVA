@@ -1,14 +1,14 @@
-import random
 import json
-from time import time
 from concurrent.futures import ProcessPoolExecutor
+from time import time
+
 from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
 
 task = 'concept:athletehomestadium'
 episodes_json = '{}.json'.format(task.replace(':', '_'))
 db_name = 'graph.db'
-search_workers = 2
+search_workers = 8
 max_path_length = 5
 teacher_path_count = 5
 
