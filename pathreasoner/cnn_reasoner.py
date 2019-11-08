@@ -3,33 +3,36 @@ import tensorflow as tf
 
 
 class CNNReasoner(tf.keras.Model):
-    def __init__(self, graph, input_width, max_path_length):
+    def __init__(self, graph, emb_size, max_path_length):
         super(CNNReasoner, self).__init__()
         self.graph = graph
-        self.input_width = input_width
+        self.emb_size = emb_size
         self.max_path_length = max_path_length
         self.cnn_windows = [
             tf.keras.Sequential([
                 tf.keras.layers.Conv1D(filters=128, kernel_size=1,
-                                       input_shape=(max_path_length, input_width),
-                                       activation=tf.nn.relu),
+                                       input_shape=(max_path_length, self.emb_size * 2),
+                                       activation=tf.nn.relu,
+                                       dtype='f4'),
                 tf.keras.layers.MaxPool1D(max_path_length)
             ]),
             tf.keras.Sequential([
                 tf.keras.layers.Conv1D(filters=128, kernel_size=2,
-                                       input_shape=(max_path_length, input_width),
-                                       activation=tf.nn.relu),
+                                       input_shape=(max_path_length, self.emb_size * 2),
+                                       activation=tf.nn.relu,
+                                       dtype='f4'),
                 tf.keras.layers.MaxPool1D(max_path_length - 1)
             ]),
             tf.keras.Sequential([
                 tf.keras.layers.Conv1D(filters=128, kernel_size=3,
-                                       input_shape=(max_path_length, input_width),
-                                       activation=tf.nn.relu),
+                                       input_shape=(max_path_length, self.emb_size * 2),
+                                       activation=tf.nn.relu,
+                                       dtype='f4'),
                 tf.keras.layers.MaxPool1D(max_path_length - 2)
             ])
         ]
         self.classifier = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(1, 384)),
+            tf.keras.layers.InputLayer(input_shape=(1, 384), dtype='f4'),
             tf.keras.layers.Dense(400, activation=tf.nn.relu),
             tf.keras.layers.Dense(400, activation=tf.nn.relu),
             tf.keras.layers.Dense(2, activation=tf.nn.softmax),
@@ -43,7 +46,7 @@ class CNNReasoner(tf.keras.Model):
             if i < len(path):
                 input_mat.append(np.concatenate((self.graph.vec_of_rel(path[i]), self.graph.vec_of_ent(path[i + 1]))))
             else:
-                input_mat.append(np.zeros(self.input_width, dtype='f4'))
+                input_mat.append(np.zeros(self.emb_size, dtype='f4'))
 
         cnn_input = np.expand_dims(np.array(input_mat), axis=0)
 
@@ -59,24 +62,3 @@ class CNNReasoner(tf.keras.Model):
         probabilities = self.classifier(concat_feature)
         return probabilities[0]
 
-    def learn_from_path(self, path, label):
-        with tf.GradientTape() as tape:
-            relation = self.relation_of_path(path)
-            cross_ent = tf.nn.softmax_cross_entropy_with_logits(logits=[relation], labels=[label])
-            # 分类结果熵向量求和
-            classify_loss = tf.reduce_mean(cross_ent)
-
-        return classify_loss, tape.gradient(classify_loss, self.trainable_variables)
-
-    def learn_from_paths(self, paths, label):
-        with tf.GradientTape() as tape:
-            relations = []
-            labels = []
-            for path in paths:
-                relations.append(self.relation_of_path(path))
-                labels.append(label)
-            cross_ent = tf.nn.softmax_cross_entropy_with_logits(logits=relations, labels=labels)
-            # 分类结果熵向量求和
-            classify_loss = tf.reduce_mean(cross_ent, axis=[0])
-
-        return classify_loss, tape.gradient(classify_loss, self.trainable_variables)

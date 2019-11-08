@@ -9,6 +9,7 @@ import tensorflow as tf
 
 import episodes
 from graph.graph import Graph
+from pathfinder.learn import learn_from_teacher
 from pathfinder.lstmfinder import LSTMFinder
 
 teacher_epoch = 25
@@ -28,7 +29,8 @@ def learn_episode(episode):
     all_probs = []
 
     for path in episode['paths']:
-        probs, gradients = student.learn_from_teacher(
+        probs, gradients = learn_from_teacher(
+            finder=student,
             path=path,
             reward=1.0,
             rel_emb=rel_emb

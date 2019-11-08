@@ -12,8 +12,10 @@ import episodes as eps
 import loss
 from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
+from pathfinder.learn import learn_from_teacher
 from pathfinder.lstmfinder import LSTMFinder
 from pathreasoner.cnn_reasoner import CNNReasoner
+from pathreasoner.learn import learn_from_paths
 
 epoch = 25
 emb_size = 100
@@ -31,7 +33,7 @@ test_set = []
 teacher = BFSFinder(env_graph=graph, max_path_length=max_path_length)
 posterior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=False)
 prior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=True)
-path_reasoner = CNNReasoner(graph=graph, input_width=emb_size * 2, max_path_length=max_path_length)
+path_reasoner = CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
 
 likelihood_optimizer = tf.optimizers.Adam(1e-4)
 # 使用SGD避免训练失败
@@ -62,6 +64,23 @@ chk.load_latest_if_exists(
 )
 
 
+def train_finder(finder, episodes, rel_emb):
+    all_probs = []
+    for reward, path in episodes:
+        probs, gradients = learn_from_teacher(
+            finder=finder,
+            path=path,
+            reward=reward,
+            rel_emb=rel_emb
+        )
+        all_probs = all_probs + probs
+
+        for gradient in gradients:
+            posterior_optimizer.apply_gradients(zip(gradient, finder.trainable_variables))
+
+    return all_probs
+
+
 # 搜索失败时重新训练
 def teach_posterior(from_id, to_id):
     episode = eps.find_episode(from_id, to_id)
@@ -75,54 +94,29 @@ def teach_posterior(from_id, to_id):
     if paths is None:
         states = teacher.paths_between(sample['from_id'], sample['to_id'], 5)
         paths = list(map(lambda s: s.path, states))
+    paths = list(map(lambda p: (1.0, p), paths))
 
-    for path in paths:
-        probs, gradients = posterior.learn_from_teacher(
-            path=path,
-            reward=1.0,
-            rel_emb=rel_emb
-        )
-        for gradient in gradients:
-            posterior_optimizer.apply_gradients(zip(gradient, posterior.trainable_variables))
+    train_finder(posterior, paths, rel_emb)
 
 
 # 训练posterior
 def train_posterior(positive, negative, rel_emb):
-    all_probs = []
-    for reward, path in positive + negative:
-        probs, gradients = posterior.learn_from_teacher(
-            path=path,
-            reward=reward,
-            rel_emb=rel_emb
-        )
-        all_probs = all_probs + probs
-
-        for gradient in gradients:
-            posterior_optimizer.apply_gradients(zip(gradient, posterior.trainable_variables))
-
-    return all_probs
+    return train_finder(posterior, positive + negative, rel_emb)
 
 
 # 训练likelihood
 def train_likelihood(paths, label):
-    classify_loss, gradient = path_reasoner.learn_from_paths(paths, label)
+    classify_loss, gradient = learn_from_paths(
+        reasoner=path_reasoner,
+        paths=paths,
+        label=label
+    )
     likelihood_optimizer.apply_gradients(zip(gradient, path_reasoner.trainable_variables))
 
 
 # 训练prior
 def train_prior(results):
-    all_probs = []
-    for reward, path in results:
-        probs, gradients = prior.learn_from_teacher(
-            path=path,
-            reward=reward
-        )
-        all_probs = all_probs + probs
-
-        for gradient in gradients:
-            prior_optimizer.apply_gradients(zip(gradient, prior.trainable_variables))
-
-    return all_probs
+    return train_finder(prior, results, None)
 
 
 def rollout_episode(episode, rel_emb, label):

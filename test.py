@@ -1,5 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
+import random
+
 import numpy as np
 # Import TensorFlow >= 1.9 and enable eager execution
 import tensorflow as tf
@@ -22,7 +24,7 @@ checkpoint_dir = 'checkpoints/'
 
 posterior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=False)
 prior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=True)
-path_reasoner = CNNReasoner(graph=graph, input_width=emb_size * 2, max_path_length=max_path_length)
+path_reasoner = CNNReasoner(graph=graph, emb_size=emb_size * 2, max_path_length=max_path_length)
 
 posterior_chkpt_file = 'checkpoints/unified/posterior_fine'
 posterior_checkpoint = tf.train.Checkpoint(model=posterior)
@@ -45,7 +47,10 @@ chk.load_latest_if_exists(
     'checkpoints/unified/', 'likelihood'
 )
 
-test_samples = graph.test_samples_of(task)[:100]
+test_samples = graph.test_samples_of(task)
+random.shuffle(test_samples)
+test_samples = test_samples[:50]
+
 positive_rel_emb = graph.vec_of_rel_name(task)
 negative_rel_emb = np.zeros(emb_size, dtype='f4')
 
@@ -88,7 +93,6 @@ for sample in test_samples:
         prior.paths_between(
             from_id=sample['from_id'],
             to_id=sample['to_id'],
-            relation=rel_emb,
             width=beam
         ))
     )
