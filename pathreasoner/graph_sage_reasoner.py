@@ -1,39 +1,35 @@
 import tensorflow as tf
 
 from layer.graphsage.aggregate import recursive
-from layer.graphsage.layers import GraphConv
+from layer.graphsage.layers import GraphConv, RandomNeighborSampler
 
 
 class GraphSAGEReasoner(tf.keras.Model):
-    def __init__(self, graph, emb_size, neighbors, width=1, step_feature_width=None):
+    def __init__(self, graph, emb_size, neighbors=None, vertical_mean=True, step_feature_width=None):
         super(GraphSAGEReasoner, self).__init__()
         self.graph = graph
         self.emb_size = emb_size
         self.aggregators = []
 
-        scope = neighbors
         if step_feature_width is None:
-            self.step_feature_width = (width + 1) * emb_size
-        else:
-            self.step_feature_width = step_feature_width
+            step_feature_width = 2 * self.emb_size
 
-        layer_input_width = self.step_feature_width
-        for i in range(width):
-            self.aggregators.append(GraphConv(
-                input_feature_dim=layer_input_width,
-                output_feature_dim=layer_input_width,
-                neighbors=scope,
-                dtype=tf.float32))
-            scope = int(scope / 2)
-            layer_input_width -= self.emb_size
+        self.sampler = RandomNeighborSampler(graph=graph)
+
+        self.aggregator = GraphConv(
+            input_feature_dim=2 * self.emb_size,
+            output_feature_dim=step_feature_width,
+            neighbors=neighbors,
+            vertical_mean=vertical_mean,
+            dtype=tf.float32)
 
         self.step_lstm = tf.keras.layers.LSTMCell(
-            units=self.step_feature_width,
+            units=step_feature_width,
             dtype=tf.float32
         )
 
         self.classifier = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(1, self.step_feature_width), dtype=tf.float32),
+            tf.keras.layers.InputLayer(input_shape=(1, step_feature_width), dtype=tf.float32),
             tf.keras.layers.Dense(400, activation=tf.nn.relu),
             tf.keras.layers.Dense(400, activation=tf.nn.relu),
             tf.keras.layers.Dense(2, activation=tf.nn.softmax),
@@ -48,7 +44,8 @@ class GraphSAGEReasoner(tf.keras.Model):
         for i in range(0, len(path), 2):
             ent_feature = recursive(
                 graph=self.graph,
-                aggregators=self.aggregators,
+                sampler=self.sampler,
+                aggregators=[self.aggregator],
                 root_id=path[i]
             )
             output, state = self.step_lstm(

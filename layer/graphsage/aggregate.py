@@ -3,7 +3,7 @@ import tensorflow as tf
 from padding import zeros_tail_vec
 
 
-def recursive(graph, aggregators, root_id, depth=0, skip=(), emb_override={}):
+def recursive(graph, sampler, aggregators, root_id, depth=0, skip=(), emb_override={}):
     root_emb = tf.expand_dims(graph.vec_of_ent(root_id), axis=0)
     root_emb_size = root_emb.shape.dims[1]
 
@@ -16,11 +16,9 @@ def recursive(graph, aggregators, root_id, depth=0, skip=(), emb_override={}):
     aggregator = aggregators[depth]
     input_width = aggregator.get_input_width()
 
-    neighbors = graph.neighbors_of(root_id)[:aggregators[depth].get_neighbor_size()]
     neighbor_features = []
-
     rel_emb_size = graph.vec_of_rel(0).size
-    for neighbor in neighbors:
+    for neighbor in sampler(inputs=[root_id, skip, aggregators[depth].get_neighbor_size()]):
         if neighbor.to_id in skip:
             continue
 
@@ -28,6 +26,7 @@ def recursive(graph, aggregators, root_id, depth=0, skip=(), emb_override={}):
             tf.expand_dims(graph.vec_of_rel(neighbor.rel_id), axis=0),
             recursive(
                 graph,
+                sampler,
                 aggregators,
                 neighbor.to_id,
                 depth + 1,
@@ -49,7 +48,7 @@ def recursive(graph, aggregators, root_id, depth=0, skip=(), emb_override={}):
     return root_feature
 
 
-def directional(graph, aggregators, path):
+def directional(graph, sampler, aggregators, path):
     step_feature = None
 
     for ent_index in range(0, len(path), 2):
@@ -70,6 +69,7 @@ def directional(graph, aggregators, path):
 
         step_feature = recursive(
             graph=graph,
+            sampler=sampler,
             aggregators=aggregators,
             root_id=path[ent_index],
             skip=skip,

@@ -15,7 +15,18 @@ def zeros_tail_vec(vec, width):
     return vec
 
 
+def zeros_bottom(mat, height):
+    mat_height = mat.shape.dims[0]
+    if mat_height < height:
+        return tf.pad(mat, [[0, height - mat_height], [0, 0]])
+
+
 if __name__ == '__main__':
     original = tf.constant([[1, 2, 3]])
     print(zeros_front_vec(original, 5))
     print(zeros_tail_vec(original, 5))
+    mat = tf.constant([
+        [1, 2, 3],
+        [4, 5, 6]
+    ])
+    print(zeros_bottom(mat, 5))
