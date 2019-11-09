@@ -1,26 +1,39 @@
-import numpy as np
 import tensorflow as tf
 
-from graph.graph import Graph
-from layer.graphsage.aggregate import directional
+from layer.graphsage.aggregate import recursive
 from layer.graphsage.layers import GraphConv
-from loss import type_to_label
-from pathreasoner.learn import learn_from_path
 
 
 class GraphSAGEReasoner(tf.keras.Model):
-    def __init__(self, graph, emb_size, neighbors):
+    def __init__(self, graph, emb_size, neighbors, width=1, step_feature_width=None):
         super(GraphSAGEReasoner, self).__init__()
         self.graph = graph
         self.emb_size = emb_size
-        self.aggregators = [
-            GraphConv(
-                input_feature_dim=2 * self.emb_size,
-                output_feature_dim=1 * self.emb_size,
-                neighbors=neighbors,
-                dtype=tf.float32)]
+        self.aggregators = []
+
+        scope = neighbors
+        if step_feature_width is None:
+            self.step_feature_width = (width + 1) * emb_size
+        else:
+            self.step_feature_width = step_feature_width
+
+        layer_input_width = self.step_feature_width
+        for i in range(width):
+            self.aggregators.append(GraphConv(
+                input_feature_dim=layer_input_width,
+                output_feature_dim=layer_input_width,
+                neighbors=scope,
+                dtype=tf.float32))
+            scope = int(scope / 2)
+            layer_input_width -= self.emb_size
+
+        self.step_lstm = tf.keras.layers.LSTMCell(
+            units=self.step_feature_width,
+            dtype=tf.float32
+        )
+
         self.classifier = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(1, 1 * self.emb_size), dtype=tf.float32),
+            tf.keras.layers.InputLayer(input_shape=(1, self.step_feature_width), dtype=tf.float32),
             tf.keras.layers.Dense(400, activation=tf.nn.relu),
             tf.keras.layers.Dense(400, activation=tf.nn.relu),
             tf.keras.layers.Dense(2, activation=tf.nn.softmax),
@@ -28,34 +41,24 @@ class GraphSAGEReasoner(tf.keras.Model):
 
     # likelihood
     def relation_of_path(self, path):
-        path_feature = directional(
-            graph=self.graph,
-            aggregators=self.aggregators,
-            path=path)
+        initial_input = tf.zeros(self.emb_size, tf.float32)
+        # [0]是hidden state, [1]是carry state
+        state = self.step_lstm.get_initial_state(inputs=tf.expand_dims(initial_input, axis=0))
 
-        probabilities = self.classifier(tf.expand_dims(path_feature, axis=0))
+        for i in range(0, len(path), 2):
+            ent_feature = recursive(
+                graph=self.graph,
+                aggregators=self.aggregators,
+                root_id=path[i]
+            )
+            output, state = self.step_lstm(
+                inputs=ent_feature,
+                states=state
+            )
+
+        path_feature = state[0]
+
+        probabilities = self.classifier(path_feature)
 
         return probabilities[0]
 
-
-if __name__ == '__main__':
-    task = 'concept:athletehomestadium'
-    graph = Graph('graph.db')
-    graph.prohibit_relation(task)
-    samples = [
-        ('-', [2592, 233, 16987, 275, 19365, 363, 3749]),
-        ('+', [2592, 233, 16987, 119, 62111])
-    ]
-    reasoner = GraphSAGEReasoner(graph=graph, emb_size=100, neighbors=15)
-    optimizer = tf.optimizers.Adam(5e-4)
-    for i in range(50):
-        losses = []
-        for (sample_type, path) in samples:
-            label = type_to_label(sample_type)
-            loss, gradient = learn_from_path(reasoner, path, label)
-            optimizer.apply_gradients(zip(gradient, reasoner.trainable_variables))
-            losses.append(loss)
-
-        print('avg loss: ' + str(np.average(np.array(losses))))
-
-    print('finished!')

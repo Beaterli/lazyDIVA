@@ -1,6 +1,5 @@
 from __future__ import absolute_import, division, print_function
 
-import random
 import time
 
 import numpy as np
@@ -17,11 +16,11 @@ from pathfinder.lstmfinder import LSTMFinder
 from pathreasoner.graph_sage_reasoner import GraphSAGEReasoner
 from pathreasoner.learn import learn_from_paths, learn_from_path
 
-epoch = 25
+epoch = 50
 emb_size = 100
-rollouts = 5
+rollouts = 15
 max_path_length = 5
-samples_count = 5
+samples_count = 100
 
 task = 'concept:athletehomestadium'
 graph = Graph('graph.db')
@@ -35,9 +34,9 @@ teacher = BFSFinder(env_graph=graph, max_path_length=max_path_length)
 posterior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=False)
 prior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=True)
 # path_reasoner = CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
-path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=25)
+path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=15, width=1)
 
-likelihood_optimizer = tf.optimizers.Adam(3e-5)
+likelihood_optimizer = tf.optimizers.Adam(1e-3)
 # 使用SGD避免训练失败
 posterior_optimizer = tf.optimizers.SGD(1e-2)
 # 使用Adam提升学习速度
@@ -144,10 +143,17 @@ def rollout_episode(episode, rel_emb, label):
 
 
 train_samples = eps.all_episodes()
-random.shuffle(train_samples)
-train_samples = train_samples[:samples_count]
+# random.shuffle(train_samples)
+train_samples = train_samples[100:100 + samples_count]
 print('using {} train samples'.format(len(train_samples)))
-
+positive_count = 0
+negative_count = 0
+for sample in train_samples:
+    if sample['type'] == '+':
+        positive_count += 1
+    else:
+        negative_count += 1
+print('positives: {}, negatives: {}'.format(positive_count, negative_count))
 # train_samples = [{
 #     'from_id': 37036,
 #     'to_id': 68461,

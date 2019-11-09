@@ -46,7 +46,7 @@ class CNNReasoner(tf.keras.Model):
             if i < len(path):
                 input_mat.append(np.concatenate((self.graph.vec_of_rel(path[i]), self.graph.vec_of_ent(path[i + 1]))))
             else:
-                input_mat.append(np.zeros(self.emb_size, dtype='f4'))
+                input_mat.append(np.zeros(self.emb_size * 2, dtype='f4'))
 
         cnn_input = np.expand_dims(np.array(input_mat), axis=0)
 

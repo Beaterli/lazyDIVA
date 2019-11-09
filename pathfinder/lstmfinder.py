@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
+from padding import zeros_front_vec
 from pathfinder.decision import pick_top_n
 from pathfinder.finderstate import FinderState
 
@@ -57,9 +58,11 @@ class LSTMFinder(tf.keras.Model):
             ])
 
     def initial_state(self, from_id):
-        initial_input = np.concatenate((np.zeros(self.emb_size, dtype="f4"), self.graph.vec_of_ent(from_id)))
+        initial_input = zeros_front_vec(
+            tf.expand_dims(self.graph.vec_of_ent(from_id), axis=0),
+            2 * self.emb_size)
         # [0]是hidden state, [1]是carry state
-        initial_state = self.history_stack.get_initial_state(inputs=np.expand_dims(initial_input, axis=0))
+        initial_state = self.history_stack.get_initial_state(inputs=initial_input)
         return FinderState(path_step=from_id, history_state=(initial_input, initial_state[0], initial_state[1]))
 
     def available_action_probs(self, state, label_vec=None):
@@ -72,9 +75,11 @@ class LSTMFinder(tf.keras.Model):
             return [], np.zeros(0, dtype='f4'), state.history_state
 
         # 计算LSTM状态
-        rel_vector = np.zeros(self.emb_size, dtype='f4')
         if len(path) > 1:
             rel_vector = self.graph.vec_of_rel(path[-2])
+        else:
+            rel_vector = np.zeros(self.emb_size, dtype='f4')
+
         input_vector = np.concatenate(
             (rel_vector, self.graph.vec_of_ent(current_id))
         )

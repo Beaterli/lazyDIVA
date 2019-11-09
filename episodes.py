@@ -1,4 +1,5 @@
 import json
+import random
 from concurrent.futures import ProcessPoolExecutor
 from time import time
 
@@ -69,6 +70,7 @@ if __name__ == '__main__':
     negative_samples = graph.negative_train_samples_of(task)
     positive_samples = graph.samples_of(task, 'train', '+')
     teacher_samples = positive_samples + negative_samples
+    random.shuffle(teacher_samples)
     # teacher_samples = teacher_samples[:5]
     print('using {} samples'.format(len(teacher_samples)))
 

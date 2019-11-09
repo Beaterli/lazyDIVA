@@ -80,7 +80,6 @@ class GraphConv(tf.keras.layers.Layer):
             neighbor_features = tf.nn.dropout(neighbor_features, 1 - self.dropout)
             root_feature = tf.nn.dropout(root_feature, 1 - self.dropout)
 
-        root_feature = tf.expand_dims(root_feature, axis=0)
         concated_features = tf.concat(
             [root_feature, neighbor_features],
             axis=0
