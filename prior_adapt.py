@@ -19,11 +19,11 @@ from test_tools import loss_on_sample
 from train_tools import train_finder, train_reasoner, teach_finder, rollout_sample, calc_reward, show_type_distribution, \
     even_types
 
-epoch = 30
+epoch = 25
 emb_size = 100
 rollouts = 15
 max_path_length = 5
-samples_count = 50
+samples_count = 300
 save_checkpoint = True
 
 database = sys.argv[1]
@@ -163,10 +163,9 @@ for i in range(0, epoch * 3):
         teacher_rounds
     ))
 
-    if not save_checkpoint:
-        continue
+    wave = int(i / 2) + 1
 
-    if stage == 1:
+    if wave % 3 == 0 and stage == 1:
         all_bads = []
         all_losses = []
         for sample in test_samples:
@@ -186,7 +185,9 @@ for i in range(0, epoch * 3):
             np.average(np.array(all_losses))
         ))
 
-    wave = int(i / 2) + 1
+    if not save_checkpoint:
+        continue
+
     if wave % 5 == 0 and stage == 1:
         likelihood_checkpoint.save(likelihood_chkpt_file)
         prior_checkpoint.save(prior_chkpt_file)
