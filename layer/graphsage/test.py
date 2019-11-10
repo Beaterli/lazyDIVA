@@ -2,25 +2,23 @@ import tensorflow as tf
 
 from graph.graph import Graph
 from layer.graphsage.aggregate import recursive
-from layer.graphsage.layers import GraphConv, RandomNeighborSampler
+from layer.graphsage.layers import GraphConv, NeighborSampler
 
 if __name__ == '__main__':
     test_graph_db = 'graph.db'
     graph = Graph(test_graph_db)
     graph.prohibit_relation('concept:athletehomestadium')
     path = [2592, 233, 16987, 275, 19365, 363, 3749]
-    sampler = RandomNeighborSampler(graph=graph)
+    sampler = NeighborSampler(graph=graph)
     emb_size = 25
     primary = GraphConv(
         input_feature_dim=3 * emb_size,
         output_feature_dim=3 * emb_size,
-        neighbors=4,
         dtype=tf.float32
     )
     secondary = GraphConv(
         input_feature_dim=2 * emb_size,
         output_feature_dim=2 * emb_size,
-        neighbors=4,
         dtype=tf.float32
     )
     print('---------------------before training---------------------')

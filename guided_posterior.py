@@ -1,6 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
-import random
+import sys
 import time
 
 import numpy as np
@@ -9,78 +9,70 @@ import tensorflow as tf
 
 import episodes
 from graph.graph import Graph
-from pathfinder.learn import learn_from_teacher
 from pathfinder.lstmfinder import LSTMFinder
+from train_tools import teach_finder
 
-teacher_epoch = 25
+teacher_epoch = 50
 teacher_path_count = 5
 max_path_length = 5
-task = 'concept:athletehomestadium'
-db_name = 'graph.db'
+database = sys.argv[1]
+task = sys.argv[2]
 emb_size = 100
+sample_count = 500
+save_checkpoint = True
 
+graph = Graph(database + '.db')
+graph.prohibit_relation(task)
+rel_embs = {
+    '+': graph.vec_of_rel_name(task),
+    '-': np.zeros(emb_size, dtype='f4')
+}
 
-def learn_episode(episode):
-    if episode['type'] == '+':
-        rel_emb = positive_emb
+student = LSTMFinder(graph=graph, emb_size=emb_size, graph_sage_state=False, max_path_length=max_path_length)
+optimizer = tf.optimizers.Adam(1e-3)
+checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=student)
+
+chkpt_file = 'checkpoints/{}/{}/guided/posterior'.format(database, task.replace('/', '_').replace(':', '_'))
+
+print('eager mode: {}'.format(tf.executing_eagerly()))
+
+samples = episodes.load_previous_episodes('{}.json'.format(task.replace(':', '_').replace('/', '_')))
+# random.shuffle(samples)
+samples = samples[:sample_count]
+
+positive_count = 0
+negative_count = 0
+for sample in samples:
+    if sample['type'] == '+':
+        positive_count += 1
     else:
-        rel_emb = negative_emb
-
-    all_probs = []
-
-    for path in episode['paths']:
-        probs, gradients = learn_from_teacher(
-            finder=student,
-            path=path,
-            reward=1.0,
-            rel_emb=rel_emb
-        )
-
-        for gradient in gradients:
-            optimizer.apply_gradients(zip(gradient, student.trainable_variables))
-
-        all_probs = all_probs + probs
-
-    return all_probs
+        negative_count += 1
+print('positives: {}, negatives: {}'.format(positive_count, negative_count))
 
 
-def learn_epoch(round, episodes):
+def learn_epoch(epoch, supervised_samples):
     start_time = time.time()
     probs = []
-    for index, episode in enumerate(episodes):
-        probs = probs + learn_episode(episode)
+    for index, sample in enumerate(supervised_samples):
+        probs = probs + teach_finder(
+            finder=student,
+            optimizer=optimizer,
+            sample=sample,
+            rel_emb=rel_embs[sample['type']]
+        )
 
     np_probs = np.array(probs)
     print('epoch: {} finished in {:.2f} seconds, prob stats: avg: {:.4f}'.format(
-        i + 1,
+        epoch + 1,
         time.time() - start_time,
         np.average(np_probs)
     ))
 
-    if round % 5 == 0:
-        checkpoint.save(chkpt_file)
 
+print('guided learning started! using {} samples'.format(len(samples)))
+for i in range(teacher_epoch):
+    learn_epoch(i, samples)
 
-if __name__ == '__main__':
-    graph = Graph(db_name)
-    graph.prohibit_relation(task)
-    positive_emb = graph.vec_of_rel_name(task)
-    negative_emb = np.zeros(emb_size, dtype='f4')
-
-    student = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
-    optimizer = tf.optimizers.Adam(2e-3)
-    checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=student)
-
-    chkpt_file = 'checkpoints/guided_posterior/posterior'
-
-    print('eager mode: {}'.format(tf.executing_eagerly()))
-
-    samples = episodes.all_episodes()
-    random.shuffle(samples)
-    # samples = samples[:500]
-    print('guided learning started! using {} samples'.format(len(samples)))
-    for i in range(teacher_epoch):
-        learn_epoch(i, samples)
-
+if save_checkpoint:
     checkpoint.save(chkpt_file)
-    print('pre-train finished!')
+print('pre-train finished!')

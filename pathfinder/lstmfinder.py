@@ -1,19 +1,35 @@
 import numpy as np
 import tensorflow as tf
 
+from layer.graphsage.aggregate import recursive
+from layer.graphsage.layers import GraphConv, NeighborSampler
 from padding import zeros_front_vec
 from pathfinder.decision import pick_top_n
 from pathfinder.finderstate import FinderState
 
 
 class LSTMFinder(tf.keras.Model):
-    def __init__(self, graph, emb_size, max_path_length, prior=False):
+    def __init__(self, graph, emb_size, max_path_length, prior=False, graph_sage_state=False):
         super(LSTMFinder, self).__init__()
         self.graph = graph
         self.rnn_stack = {}
         self.selection_mlp = {}
         self.history_depth = max_path_length
         self.emb_size = emb_size
+
+        self.use_graph_sage = graph_sage_state
+        if self.use_graph_sage:
+            self.aggregator = GraphConv(
+                input_feature_dim=2 * emb_size,
+                output_feature_dim=2 * emb_size,
+                neighbors=15,
+                vertical_mean=True
+            )
+            self.sampler = NeighborSampler(
+                graph=graph,
+                random_sample=False
+            )
+
         self.history_width = 2 * emb_size
         self.history_stack = tf.keras.layers.LSTMCell(
             units=self.history_width,
@@ -22,6 +38,7 @@ class LSTMFinder(tf.keras.Model):
             recurrent_regularizer=tf.keras.regularizers.l2(),
             dtype=tf.float32
         )
+
         if prior:
             self.mlp = tf.keras.Sequential([
                 tf.keras.layers.InputLayer(input_shape=(1, self.history_width + 1 * emb_size),
@@ -80,13 +97,22 @@ class LSTMFinder(tf.keras.Model):
         else:
             rel_vector = np.zeros(self.emb_size, dtype='f4')
 
-        input_vector = np.concatenate(
-            (rel_vector, self.graph.vec_of_ent(current_id))
-        )
+        if self.use_graph_sage:
+            input_vector = recursive(
+                graph=self.graph,
+                sampler=self.sampler,
+                aggregators=[self.aggregator],
+                root_id=current_id
+            )
+        else:
+            input_vector = tf.expand_dims(tf.concat([
+                rel_vector,
+                self.graph.vec_of_ent(current_id)
+            ], axis=0), axis=0)
 
         history_state = state.history_state
         output_vector, stack_state = self.history_stack(
-            inputs=np.expand_dims(input_vector, axis=0),
+            inputs=input_vector,
             states=(history_state[1], history_state[2])
         )
 

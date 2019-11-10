@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import sys
 import time
 
 import numpy as np
@@ -11,180 +12,162 @@ import episodes as eps
 import loss
 from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
-from pathfinder.learn import learn_from_teacher
 from pathfinder.lstmfinder import LSTMFinder
+from pathreasoner.cnn_reasoner import CNNReasoner
 from pathreasoner.graph_sage_reasoner import GraphSAGEReasoner
-from pathreasoner.learn import learn_from_paths, learn_from_path
+from train_tools import train_finder, train_reasoner, teach_finder, rollout_sample, calc_reward, show_type_distribution
 
-epoch = 50
+epoch = 30
 emb_size = 100
 rollouts = 15
+print('rollouts: ' + rollouts)
 max_path_length = 5
-samples_count = 100
+samples_count = 300
+save_checkpoint = True
+restore_checkpoint = False
 
-task = 'concept:athletehomestadium'
-graph = Graph('graph.db')
+database = sys.argv[1]
+task = sys.argv[2]
+task_dir_name = task.replace('/', '_').replace(':', '_')
+reasoner_class = sys.argv[3]
+
+graph = Graph(database + '.db')
 graph.prohibit_relation(task)
-checkpoint_dir = 'checkpoints/'
+rel_embs = {
+    '+': graph.vec_of_rel_name(task),
+    '-': np.zeros(emb_size, dtype='f4')
+}
 
-train_set = []
-test_set = []
+checkpoint_dir = 'checkpoints/{}/{}/unified/{}/'.format(
+    database,
+    task_dir_name,
+    reasoner_class)
 
 teacher = BFSFinder(env_graph=graph, max_path_length=max_path_length)
 posterior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=False)
 prior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=True)
-# path_reasoner = CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
-path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=15, width=1)
+
+if reasoner_class == 'cnn':
+    path_reasoner = CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
+else:
+    path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=15)
+
+path_reasoner_name = type(path_reasoner).__name__
+print('using {}, {}, {}'.format(type(posterior).__name__, path_reasoner_name, type(prior).__name__))
 
 likelihood_optimizer = tf.optimizers.Adam(1e-3)
 # 使用SGD避免训练失败
 posterior_optimizer = tf.optimizers.SGD(1e-2)
 # 使用Adam提升学习速度
-prior_optimizer = tf.optimizers.Adam(2e-3)
+prior_optimizer = tf.optimizers.Adam(1e-3)
 
-save_checkpoint = False
+posterior_chkpt_file = checkpoint_dir + 'posterior'
+prior_chkpt_file = checkpoint_dir + 'prior'
+likelihood_chkpt_file = checkpoint_dir + path_reasoner_name
 
-posterior_chkpt_file = 'checkpoints/unified/posterior_fine'
 posterior_checkpoint = tf.train.Checkpoint(model=posterior)
-chk.load_latest_with_priority(
+chk.load_latest_if_exists(
     posterior_checkpoint,
-    'checkpoints/unified/', 'posterior_fine',
-    'checkpoints/guided_posterior/', 'posterior'
+    'checkpoints/{}/{}/guided/'.format(database, task_dir_name), 'posterior'
 )
 
 prior_checkpoint = tf.train.Checkpoint(optimizer=prior_optimizer, model=prior)
-prior_chkpt_file = 'checkpoints/unified/prior'
-chk.load_latest_if_exists(
-    prior_checkpoint,
-    'checkpoints/unified/', 'prior'
-)
-
 likelihood_checkpoint = tf.train.Checkpoint(optimizer=likelihood_optimizer, model=path_reasoner)
-likelihood_chkpt_file = 'checkpoints/unified/likelihood'
-chk.load_latest_if_exists(
-    likelihood_checkpoint,
-    'checkpoints/unified/', 'likelihood'
-)
 
+if restore_checkpoint:
+    chk.load_latest_if_exists(
+        prior_checkpoint,
+        checkpoint_dir, 'prior'
+    )
 
-def train_finder(finder, episodes, rel_emb):
-    all_probs = []
-    for reward, path in episodes:
-        probs, gradients = learn_from_teacher(
-            finder=finder,
-            path=path,
-            reward=reward,
-            rel_emb=rel_emb
-        )
-        all_probs = all_probs + probs
+    chk.load_latest_if_exists(
+        posterior_checkpoint,
+        checkpoint_dir, 'posterior'
+    )
 
-        for gradient in gradients:
-            posterior_optimizer.apply_gradients(zip(gradient, finder.trainable_variables))
-
-    return all_probs
-
-
-# 搜索失败时重新训练
-def teach_posterior(from_id, to_id):
-    episode = eps.find_episode(from_id, to_id)
-
-    if episode['type'] == '+':
-        rel_emb = positive_rel_emb
-    else:
-        rel_emb = negative_rel_emb
-
-    paths = episode['paths']
-    if paths is None:
-        states = teacher.paths_between(sample['from_id'], sample['to_id'], 5)
-        paths = list(map(lambda s: s.path, states))
-    paths = list(map(lambda p: (1.0, p), paths))
-
-    train_finder(posterior, paths, rel_emb)
-
-
-# 训练posterior
-def train_posterior(positive, negative, rel_emb):
-    return train_finder(posterior, positive + negative, rel_emb)
+    chk.load_latest_if_exists(
+        likelihood_checkpoint,
+        checkpoint_dir, path_reasoner_name
+    )
 
 
 # 训练likelihood
 def train_likelihood(paths, label):
-    classify_loss, gradient = learn_from_paths(
+    train_reasoner(
         reasoner=path_reasoner,
+        optimizer=likelihood_optimizer,
         paths=paths,
         label=label
     )
-    likelihood_optimizer.apply_gradients(zip(gradient, path_reasoner.trainable_variables))
 
 
 # 训练prior
-def train_prior(results):
-    return train_finder(prior, results, None)
+def train_prior(episodes):
+    return train_finder(
+        finder=prior,
+        optimizer=prior_optimizer,
+        episodes=episodes
+    )
 
 
-def rollout_episode(episode, rel_emb, label):
-    positive_results = []
-    negative_results = []
-
-    # 查找n条路径
-    path_states = posterior.paths_between(episode['from_id'], episode['to_id'], rollouts, rel_emb)
-
-    # 获得路径的奖励值
-    for state in path_states:
-        if state.path[-1] != episode['to_id']:
-            negative_results.append((search_failure_reward, state.path))
-            continue
-
-        # 需要反转分类损失作为路径搜索奖励
-        classify_loss, gradient = learn_from_path(path_reasoner, state.path, label)
-        positive_results.append((1.0 - classify_loss, state.path))
-
-    return positive_results, negative_results
+# 训练posterior
+def train_posterior(episodes, relation_emb):
+    return train_finder(
+        finder=posterior,
+        optimizer=posterior_optimizer,
+        episodes=episodes,
+        rel_emb=relation_emb
+    )
 
 
-train_samples = eps.all_episodes()
+train_samples = eps.load_previous_episodes('{}.json'.format(task.replace(':', '_').replace('/', '_')))
 # random.shuffle(train_samples)
-train_samples = train_samples[100:100 + samples_count]
+train_samples = train_samples[:samples_count]
 print('using {} train samples'.format(len(train_samples)))
-positive_count = 0
-negative_count = 0
-for sample in train_samples:
-    if sample['type'] == '+':
-        positive_count += 1
-    else:
-        negative_count += 1
-print('positives: {}, negatives: {}'.format(positive_count, negative_count))
+show_type_distribution(train_samples)
 # train_samples = [{
 #     'from_id': 37036,
 #     'to_id': 68461,
 #     'type': '-'
 # }]
-positive_rel_emb = graph.vec_of_rel_name(task)
-negative_rel_emb = np.zeros(emb_size, dtype='f4')
-search_failure_reward = -0.05
 
-for i in range(epoch * 3):
+for i in range(0, epoch * 3):
     epoch_start = time.time()
-    all_loss = np.zeros(0)
+    all_loss = []
     stage = i % 3
     teacher_rounds = 0
 
     for index, sample in enumerate(train_samples):
         label = loss.type_to_label(sample['type'])
-        if sample['type'] == '+':
-            rel_emb = positive_rel_emb
-        else:
-            rel_emb = negative_rel_emb
+        rel_emb = rel_embs[sample['type']]
 
-        positive, negative = rollout_episode(sample, rel_emb, label)
-        all_loss = np.concatenate((all_loss, list(map(lambda r: max(1.0 - r[0], 0.05), positive))))
+        paths = rollout_sample(
+            finder=posterior,
+            sample=sample,
+            rollouts=rollouts,
+            rel_emb=rel_emb
+        )
+
+        positive, negative, losses = calc_reward(
+            reasoner=path_reasoner,
+            sample=sample,
+            paths=paths,
+            label=label
+        )
+
+        all_loss = all_loss + losses
 
         # 训练posterior
         if stage == 0:
-            train_posterior(positive, negative, rel_emb)
+            train_posterior(positive + negative, rel_emb)
             # 成功路径过少，需要重新监督学习
             if len(positive) < 2:
-                teach_posterior(sample['from_id'], sample['to_id'])
+                teach_finder(
+                    finder=posterior,
+                    optimizer=posterior_optimizer,
+                    rel_emb=rel_emb,
+                    sample=sample
+                )
                 teacher_rounds += 1
         # 训练likelihood
         elif stage == 1:
@@ -196,6 +179,7 @@ for i in range(epoch * 3):
         else:
             train_prior(positive)
 
+    all_loss = np.array(all_loss)
     avg_loss = np.average(all_loss)
     min_loss = np.min(all_loss)
     print('epoch: {} stage: {} takes {:.2f}s, min: {:.4f}, avg: {:.4f}, max: {:.4f}, teaches: {}'.format(
@@ -211,15 +195,10 @@ for i in range(epoch * 3):
     if not save_checkpoint:
         continue
 
-    if i % 15 == 12:
+    wave = int(i / 3) + 1
+    if wave % 5 == 0 and stage == 2:
         posterior_checkpoint.save(posterior_chkpt_file)
-    elif i % 15 == 13:
         likelihood_checkpoint.save(likelihood_chkpt_file)
-    elif i % 15 == 14:
         prior_checkpoint.save(prior_chkpt_file)
 
-if save_checkpoint:
-    posterior_checkpoint.save(posterior_chkpt_file)
-    likelihood_checkpoint.save(likelihood_chkpt_file)
-    prior_checkpoint.save(prior_chkpt_file)
 print('finished!')

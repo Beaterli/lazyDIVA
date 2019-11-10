@@ -5,22 +5,28 @@ import tensorflow as tf
 from padding import zeros_bottom
 
 
-class RandomNeighborSampler(tf.keras.layers.Layer):
+class NeighborSampler(tf.keras.layers.Layer):
     def __init__(self,
                  graph,
+                 random_sample=True,
                  name='RandomNeighborSampler',
                  **kwargs):
-        super(RandomNeighborSampler, self).__init__(
+        super(NeighborSampler, self).__init__(
             trainable=False,
             name=name,
             **kwargs)
         self.graph = graph
+        self.random_sample = random_sample
 
     def call(self, inputs):
         ent_id, skips, count = inputs
         neighbors = self.graph.neighbors_of(ent_id).copy()
-        random.shuffle(neighbors)
-        return neighbors[:count]
+        if self.random_sample:
+            random.shuffle(neighbors)
+        if count is None:
+            return neighbors
+        else:
+            return neighbors[:count]
 
 
 class GraphConv(tf.keras.layers.Layer):

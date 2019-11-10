@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from layer.graphsage.aggregate import recursive
-from layer.graphsage.layers import GraphConv, RandomNeighborSampler
+from layer.graphsage.layers import GraphConv, NeighborSampler
 
 
 class GraphSAGEReasoner(tf.keras.Model):
@@ -14,7 +14,7 @@ class GraphSAGEReasoner(tf.keras.Model):
         if step_feature_width is None:
             step_feature_width = 2 * self.emb_size
 
-        self.sampler = RandomNeighborSampler(graph=graph)
+        self.sampler = NeighborSampler(graph=graph)
 
         self.aggregator = GraphConv(
             input_feature_dim=2 * self.emb_size,

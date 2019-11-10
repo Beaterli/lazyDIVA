@@ -1,17 +1,17 @@
 import os
 import sqlite3
 
-dataPath = 'D:\\project\\paper\\NELL-995\\'
+dataPath = 'D:\\project\\master-degree\\FB15k-237\\'
 entityIdFile = dataPath + 'entity2id.txt'
 relationIdFile = dataPath + 'relation2id.txt'
 entityVecFile = dataPath + 'entity2vec.bern'
 relationVecFile = dataPath + 'relation2vec.bern'
-graphFile = dataPath + 'kb_env_rl.txt'
+graphFile = dataPath + 'kb_env.txt'
 
-if os.path.exists('graph.db'):
-    os.remove('graph.db')
+if os.path.exists('fb15k-237.db'):
+    os.remove('fb15k-237.db')
 
-conn = sqlite3.connect('graph.db')
+conn = sqlite3.connect('fb15k-237.db')
 conn.execute('''create table entities(
 	eid int primary key not null,
 	entity text not null,
@@ -36,12 +36,20 @@ conn.execute('''create table samples(
 )''')
 conn.commit()
 
+
+def format_entity(ent_name):
+    if ent_name.find('/') != -1:
+        ent_name = ent_name[1:].replace('/', '_')
+    return ent_name
+
+
 vecFile = open(entityVecFile)
 idFile = open(entityIdFile)
 entityIds = {}
 for idLine in idFile.readlines():
     vecLine = vecFile.readline()
     entity, eid = idLine.split()
+    entity = format_entity(entity)
     entityIds[entity] = eid
     conn.execute('''insert into entities values (?, ?, ?)''', (eid, entity, vecLine))
 vecFile.close()
@@ -63,6 +71,8 @@ conn.commit()
 gFile = open(graphFile)
 for line in gFile.readlines():
     from_ent, to_ent, relation = line.split()
+    from_ent = format_entity(from_ent)
+    to_ent = format_entity(to_ent)
     conn.execute('''insert into graph values (?, ?, ?)''',
                  (entityIds[from_ent], relationIds[relation], entityIds[to_ent]))
 gFile.close()
@@ -73,18 +83,30 @@ for name in os.listdir(dataPath + "tasks"):
     if not os.path.isdir(task_path):
         continue
 
-    rel = name.replace("concept_", "concept:")
+    print('loading task: ' + name)
+
+    rel = name.replace("concept_", "concept:").replace("@", "/")
+    if rel.find("/") != -1:
+        rel = "/" + rel
+
     trainFile = open(task_path + "\\train.pairs")
     for line in trainFile.readlines():
         from_ent, to_ent = line.split(',')
         from_ent = from_ent.replace('thing$', '')
         to_ent, positive = to_ent.split(': ')
         to_ent = to_ent.replace('thing$', '')
+
+        if from_ent not in entityIds or to_ent not in entityIds:
+            continue
+
         conn.execute('''insert into samples values(?, ?, ?, ?, ?)''',
                      (entityIds[from_ent], relationIds[rel], entityIds[to_ent],
                       positive.replace('\n', '').replace('\r', ''),
                       'train'))
     trainFile.close()
+
+    if not os.path.exists(task_path + "\\test.pairs"):
+        continue
 
     testFile = open(task_path + "\\test.pairs")
     for line in testFile.readlines():
@@ -92,6 +114,10 @@ for name in os.listdir(dataPath + "tasks"):
         from_ent = from_ent.replace('thing$', '')
         to_ent, positive = to_ent.split(': ')
         to_ent = to_ent.replace('thing$', '')
+
+        if from_ent not in entityIds or to_ent not in entityIds:
+            continue
+
         conn.execute('''insert into samples values(?, ?, ?, ?, ?)''',
                      (entityIds[from_ent], relationIds[rel], entityIds[to_ent],
                       positive.strip().replace('\n', '').replace('\r', ''),

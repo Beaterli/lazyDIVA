@@ -76,6 +76,8 @@ class Graph(object):
         for row in self.conn.execute('''select rid from relations where relation = ? or relation = ?''',
                                      (relation_text, relation_text + '_inv')).fetchall():
             self.prohibits.append(row[0])
+        if len(self.prohibits) == 0:
+            print('relation: ' + relation_text + ' don\'t exists!')
 
     def neighbors_of(self, ent_id):
         neighbors = []

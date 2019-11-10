@@ -35,28 +35,31 @@ def test_loss(reasoner):
 
 
 if __name__ == '__main__':
-    task = 'concept:athletehomestadium'
-    graph = Graph('graph.db')
+    task = '/film/director/film'
+    graph = Graph('fb15k-237.db')
     graph.prohibit_relation(task)
     samples = [
-        ('-', [2592, 233, 16987, 275, 19365, 363, 3749]),
-        ('+', [2592, 233, 16987, 119, 62111]),
-        ('-', [48957, 254, 27732, 63, 2909, 36, 5099]),
-        ('+', [56803, 226, 25762, 363, 20621]),
-        ('-', [16862, 233, 54557, 82, 39045, 106, 34298]),
-        ('+', [67621, 198, 62111, 387, 3749])
+        ('-', [6403, 441, 10211, 354, 4487]),
+        ('+', [3818, 98, 5261]),
+        ('-', [6850, 10, 6444]),
+        ('+', [574, 415, 3853, 129, 12159]),
+        ('-', [10564, 415, 4876, 403, 9838]),
+        ('+', [7117, 249, 458, 370, 5612, 441, 355])
     ]
     tests = [
-        ('+', [17194, 226, 46241, 119, 13360, 387, 53464]),
-        ('-', [64681, 254, 47635, 278, 25313, 363, 48217])
+        ('+', [11211, 415, 3276, 403, 6452]),
+        ('-', [11312, 98, 13872, 397, 5392, 87, 10927]),
+        ('+', [5993, 98, 13403]),
+        ('-', [2500, 21, 4527, 174, 8424])
     ]
-    epoch = 5
+    epoch = 10
+    emb_size = 100
 
     reasoners = [
-        (GraphSAGEReasoner(graph=graph, emb_size=25, neighbors=25, step_feature_width=50),
-         tf.optimizers.Adam(5e-3)),
-        (CNNReasoner(graph=graph, emb_size=25, max_path_length=5),
-         tf.optimizers.Adam(5e-3))
+        (GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=25, step_feature_width=3 * emb_size),
+         tf.optimizers.Adam(1e-3)),
+        (CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=5),
+         tf.optimizers.Adam(1e-3))
     ]
 
     for reasoner in reasoners:

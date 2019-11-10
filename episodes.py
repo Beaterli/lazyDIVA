@@ -6,17 +6,18 @@ from time import time
 from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
 
-task = 'concept:athletehomestadium'
-episodes_json = '{}.json'.format(task.replace(':', '_'))
-db_name = 'graph.db'
-search_workers = 8
+task = '/film/director/film'
+episodes_json = '{}.json'.format(task.replace(':', '_').replace('/', '_'))
+db_name = 'fb15k-237.db'
+search_workers = 6
 max_path_length = 5
 teacher_path_count = 5
 
 
-def load_previous_episodes():
+def load_previous_episodes(file_name):
     try:
-        json_file = open(episodes_json, 'r')
+        print('loading episodes from: ' + file_name)
+        json_file = open(file_name, 'r')
         lines = json_file.readlines()
         json_file.close()
         return json.loads('\n'.join(lines))
@@ -54,7 +55,7 @@ def all_episodes():
     return episodes
 
 
-def find_episode(from_id, to_id):
+def find_episode(episodes, from_id, to_id):
     for episode in episodes:
         if episode['from_id'] == from_id \
                 and episode['to_id'] == to_id:
@@ -65,10 +66,11 @@ def find_episode(from_id, to_id):
 if __name__ == '__main__':
     graph = Graph(db_name)
     graph.prohibit_relation(task)
-    previous_episodes = load_previous_episodes()
 
-    negative_samples = graph.negative_train_samples_of(task)
     positive_samples = graph.samples_of(task, 'train', '+')
+    negative_samples = graph.samples_of(task, 'train', '-')
+    random.shuffle(negative_samples)
+    negative_samples = negative_samples[:len(positive_samples)]
     teacher_samples = positive_samples + negative_samples
     random.shuffle(teacher_samples)
     # teacher_samples = teacher_samples[:5]
@@ -89,5 +91,3 @@ if __name__ == '__main__':
     thread_pool.shutdown()
     print('search complete in {}s'.format(time() - search_start))
     save_episodes(episodes)
-else:
-    episodes = load_previous_episodes()

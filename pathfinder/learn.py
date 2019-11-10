@@ -5,7 +5,7 @@ from pathfinder.decision import index_of
 from pathfinder.finderstate import FinderState
 
 
-def learn_from_teacher(finder, path, reward, rel_emb=None):
+def step_by_step(finder, path, reward, rel_emb=None):
     probs = []
     gradients = []
 
