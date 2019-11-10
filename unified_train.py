@@ -21,7 +21,7 @@ from train_tools import train_finder, train_reasoner, teach_finder, rollout_samp
 
 epoch = 25
 emb_size = 100
-rollouts = 15
+rollouts = 20
 print('rollouts: {}'.format(rollouts))
 max_path_length = 5
 samples_count = 300
