@@ -12,7 +12,7 @@ from graph.graph import Graph
 from pathfinder.lstmfinder import LSTMFinder
 from train_tools import teach_finder, show_type_distribution
 
-teacher_epoch = 50
+teacher_epoch = 25
 teacher_path_count = 5
 max_path_length = 5
 database = sys.argv[1]
