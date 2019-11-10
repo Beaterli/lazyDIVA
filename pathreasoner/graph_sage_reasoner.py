@@ -5,7 +5,9 @@ from layer.graphsage.layers import GraphConv, NeighborSampler
 
 
 class GraphSAGEReasoner(tf.keras.Model):
-    def __init__(self, graph, emb_size, neighbors=None, vertical_mean=True, step_feature_width=None):
+    def __init__(self, graph, emb_size,
+                 vertical_mean=True, step_feature_width=None,
+                 neighbors=None, random_sample=True):
         super(GraphSAGEReasoner, self).__init__()
         self.graph = graph
         self.emb_size = emb_size
@@ -14,7 +16,7 @@ class GraphSAGEReasoner(tf.keras.Model):
         if step_feature_width is None:
             step_feature_width = 2 * self.emb_size
 
-        self.sampler = NeighborSampler(graph=graph)
+        self.sampler = NeighborSampler(graph=graph, random_sample=random_sample)
 
         self.aggregator = GraphConv(
             input_feature_dim=2 * self.emb_size,
@@ -42,11 +44,17 @@ class GraphSAGEReasoner(tf.keras.Model):
         state = self.step_lstm.get_initial_state(inputs=tf.expand_dims(initial_input, axis=0))
 
         for i in range(0, len(path), 2):
+            if i == 0:
+                rel_id = None
+            else:
+                rel_id = path[i - 1]
+
             ent_feature = recursive(
                 graph=self.graph,
                 sampler=self.sampler,
                 aggregators=[self.aggregator],
-                root_id=path[i]
+                root_id=path[i],
+                rel_id=rel_id
             )
             output, state = self.step_lstm(
                 inputs=ent_feature,

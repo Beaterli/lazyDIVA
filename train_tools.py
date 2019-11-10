@@ -2,9 +2,16 @@ from pathfinder.learn import step_by_step
 from pathreasoner.learn import learn_from_path, learn_from_paths
 
 teacher_reward = 1.0
-search_failure_reward = -0.2
-success_reward_ratio = 1.0
-success_reward_floor = 0.05
+search_failure_reward = -0.05
+success_reward_range = [0.05, 0.5]
+
+
+def clip_range(value, min_value, max_value):
+    if value < min_value:
+        return min_value
+    if value > max_value:
+        return max_value
+    return value
 
 
 def show_type_distribution(samples):
@@ -80,11 +87,7 @@ def calc_reward(reasoner, sample, paths, label):
         # 需要反转分类损失作为路径搜索奖励
         classify_loss, gradient = learn_from_path(reasoner, path, label)
         losses.append(classify_loss)
-        reward = 1.0 - classify_loss
-        if reward < 0.1:
-            reward = success_reward_floor
-        else:
-            reward = reward * success_reward_ratio
+        reward = clip_range(1.0 - classify_loss, success_reward_range[0], success_reward_range[1])
         positive_results.append((reward, path))
 
     return positive_results, negative_results, losses
