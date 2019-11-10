@@ -2,8 +2,9 @@ from pathfinder.learn import step_by_step
 from pathreasoner.learn import learn_from_path, learn_from_paths
 
 teacher_reward = 1.0
-search_failure_reward = -0.05
-success_reward_ratio = 0.5
+search_failure_reward = -0.2
+success_reward_ratio = 1.0
+success_reward_floor = 0.05
 
 
 def show_type_distribution(samples):
@@ -44,7 +45,7 @@ def teach_finder(finder, optimizer, rel_emb=None, sample=None, teacher=None):
 
     episodes = list(map(lambda p: (teacher_reward, p), paths))
 
-    train_finder(finder, optimizer, episodes, rel_emb)
+    return train_finder(finder, optimizer, episodes, rel_emb)
 
 
 # 训练likelihood
@@ -81,7 +82,7 @@ def calc_reward(reasoner, sample, paths, label):
         losses.append(classify_loss)
         reward = 1.0 - classify_loss
         if reward < 0.1:
-            reward = search_failure_reward
+            reward = success_reward_floor
         else:
             reward = reward * success_reward_ratio
         positive_results.append((reward, path))

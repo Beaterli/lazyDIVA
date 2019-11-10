@@ -10,7 +10,7 @@ import tensorflow as tf
 import episodes
 from graph.graph import Graph
 from pathfinder.lstmfinder import LSTMFinder
-from train_tools import teach_finder
+from train_tools import teach_finder, show_type_distribution
 
 teacher_epoch = 50
 teacher_path_count = 5
@@ -40,14 +40,7 @@ samples = episodes.load_previous_episodes('{}.json'.format(task.replace(':', '_'
 # random.shuffle(samples)
 samples = samples[:sample_count]
 
-positive_count = 0
-negative_count = 0
-for sample in samples:
-    if sample['type'] == '+':
-        positive_count += 1
-    else:
-        negative_count += 1
-print('positives: {}, negatives: {}'.format(positive_count, negative_count))
+show_type_distribution(samples)
 
 
 def learn_epoch(epoch, supervised_samples):
