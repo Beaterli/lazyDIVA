@@ -9,20 +9,22 @@ import tensorflow as tf
 
 import checkpoints as chk
 import episodes as eps
-import loss
+import loss_tools
 from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
 from pathfinder.lstmfinder import LSTMFinder
 from pathreasoner.cnn_reasoner import CNNReasoner
 from pathreasoner.graph_sage_reasoner import GraphSAGEReasoner
-from train_tools import train_finder, train_reasoner, teach_finder, rollout_sample, calc_reward, show_type_distribution
+from test_tools import loss_on_sample
+from train_tools import train_finder, train_reasoner, teach_finder, rollout_sample, calc_reward, show_type_distribution, \
+    even_types
 
 epoch = 30
 emb_size = 100
 rollouts = 15
 print('rollouts: {}'.format(rollouts))
 max_path_length = 5
-samples_count = 300
+samples_count = 50
 save_checkpoint = True
 restore_checkpoint = False
 
@@ -130,6 +132,7 @@ show_type_distribution(train_samples)
 #     'to_id': 68461,
 #     'type': '-'
 # }]
+test_samples = even_types(graph.test_samples_of(task), int(samples_count / 4))
 
 for i in range(0, epoch * 3):
     epoch_start = time.time()
@@ -138,7 +141,7 @@ for i in range(0, epoch * 3):
     teacher_rounds = 0
 
     for index, sample in enumerate(train_samples):
-        label = loss.type_to_label(sample['type'])
+        label = loss_tools.type_to_label(sample['type'])
         rel_emb = rel_embs[sample['type']]
 
         paths = rollout_sample(
@@ -194,6 +197,28 @@ for i in range(0, epoch * 3):
 
     if not save_checkpoint:
         continue
+
+    if stage == 2:
+        all_bads = []
+        all_losses = []
+        for sample in test_samples:
+            label = loss_tools.type_to_label(sample['type'])
+            rel_emb = rel_embs[sample['type']]
+
+            loss, bads = loss_on_sample(
+                sample=sample,
+                finder=posterior,
+                beam=5,
+                reasoner=path_reasoner,
+                label=label,
+                rel_emb=rel_emb
+            )
+            all_bads.append(bads)
+            all_losses.append(loss)
+        print('perf on test: avg bads: {:.2f}, avg loss: {:.4f}'.format(
+            np.average(np.array(all_bads)),
+            np.average(np.array(all_losses))
+        ))
 
     wave = int(i / 3) + 1
     if wave % 5 == 0 and stage == 2:

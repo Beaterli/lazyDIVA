@@ -7,7 +7,6 @@ import numpy as np
 import tensorflow as tf
 
 import checkpoints as chk
-import loss
 from graph.graph import Graph
 from pathfinder.lstmfinder import LSTMFinder
 from pathreasoner.cnn_reasoner import CNNReasoner
@@ -17,6 +16,7 @@ from pathreasoner.learn import learn_from_path
 emb_size = 100
 beam = 5
 max_path_length = 5
+test_count = 50
 
 database = sys.argv[1]
 task = sys.argv[2]
@@ -59,7 +59,7 @@ chk.load_latest_if_exists(
 
 test_samples = graph.test_samples_of(task)
 # random.shuffle(test_samples)
-test_samples = test_samples[:200]
+test_samples = test_samples[:test_count]
 
 positive_rel_emb = graph.vec_of_rel_name(task)
 negative_rel_emb = np.zeros(emb_size, dtype='f4')
@@ -81,42 +81,7 @@ prior_losses = []
 prior_fails = 0
 posterior_losses = []
 posterior_fails = 0
-for sample in test_samples:
-    from_id = sample['from_id']
-    to_id = sample['to_id']
-    sample_type = sample['type']
 
-    label = loss.type_to_label(sample['type'])
-    if sample_type == '+':
-        rel_emb = positive_rel_emb
-    else:
-        rel_emb = negative_rel_emb
-
-    posterior_paths = list(map(
-        lambda state: state.path,
-        posterior.paths_between(
-            from_id=from_id,
-            to_id=to_id,
-            relation=rel_emb,
-            width=beam
-        ))
-    )
-    prior_paths = list(map(
-        lambda state: state.path,
-        prior.paths_between(
-            from_id=sample['from_id'],
-            to_id=sample['to_id'],
-            width=beam
-        ))
-    )
-
-    prior_bads, good_losses = test(to_id, label, prior_paths)
-    prior_fails += prior_bads
-    prior_losses = prior_losses + good_losses
-
-    post_bads, good_losses = test(to_id, label, posterior_paths)
-    posterior_fails += post_bads
-    posterior_losses = posterior_losses + good_losses
 
 prior_losses = np.array(prior_losses)
 posterior_losses = np.array(posterior_losses)

@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-import loss
+import loss_tools
 from pathfinder.decision import index_of
 from pathfinder.finderstate import FinderState
 
@@ -17,7 +17,7 @@ def step_by_step(finder, path, reward, rel_emb=None):
 
             action_index = index_of(candidates, path[step_index], path[step_index + 1])
 
-            neg_log_prob = loss.one_hot(action_index, student_action_probs, reward)
+            neg_log_prob = loss_tools.one_hot(action_index, student_action_probs, reward)
 
         gradients.append(tape.gradient(neg_log_prob, finder.trainable_variables))
         student_state = FinderState(

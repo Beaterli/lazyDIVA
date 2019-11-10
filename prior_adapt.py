@@ -9,19 +9,21 @@ import tensorflow as tf
 
 import checkpoints as chk
 import episodes as eps
-import loss
+import loss_tools
 from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
 from pathfinder.lstmfinder import LSTMFinder
 from pathreasoner.cnn_reasoner import CNNReasoner
 from pathreasoner.graph_sage_reasoner import GraphSAGEReasoner
-from train_tools import train_finder, train_reasoner, teach_finder, rollout_sample, calc_reward, show_type_distribution
+from test_tools import loss_on_sample
+from train_tools import train_finder, train_reasoner, teach_finder, rollout_sample, calc_reward, show_type_distribution, \
+    even_types
 
 epoch = 30
 emb_size = 100
 rollouts = 15
 max_path_length = 5
-samples_count = 300
+samples_count = 50
 save_checkpoint = True
 
 database = sys.argv[1]
@@ -58,18 +60,18 @@ print('using {}, {}'.format(path_reasoner_name, type(prior).__name__))
 
 likelihood_optimizer = tf.optimizers.Adam(1e-3)
 # 使用SGD避免训练失败
-prior_optimizer = tf.optimizers.SGD(1e-2)
+prior_optimizer = tf.optimizers.Adam(1e-4)
 
 likelihood_chkpt_file = checkpoint_dir + path_reasoner_name
 prior_chkpt_file = checkpoint_dir + 'prior'
 
-prior_checkpoint = tf.train.Checkpoint(optimizer=prior_optimizer, model=prior)
+prior_checkpoint = tf.train.Checkpoint(model=prior)
 chk.load_latest_if_exists(
     prior_checkpoint,
     restore_dir, 'prior'
 )
 
-likelihood_checkpoint = tf.train.Checkpoint(optimizer=likelihood_optimizer, model=path_reasoner)
+likelihood_checkpoint = tf.train.Checkpoint(model=path_reasoner)
 chk.load_latest_if_exists(
     likelihood_checkpoint,
     restore_dir, path_reasoner_name
@@ -105,6 +107,7 @@ show_type_distribution(train_samples)
 #     'to_id': 68461,
 #     'type': '-'
 # }]
+test_samples = even_types(graph.test_samples_of(task), int(samples_count / 4))
 
 for i in range(0, epoch * 3):
     epoch_start = time.time()
@@ -113,14 +116,12 @@ for i in range(0, epoch * 3):
     teacher_rounds = 0
 
     for index, sample in enumerate(train_samples):
-        label = loss.type_to_label(sample['type'])
-        rel_emb = rel_embs[sample['type']]
+        label = loss_tools.type_to_label(sample['type'])
 
         paths = rollout_sample(
             finder=prior,
             sample=sample,
-            rollouts=rollouts,
-            rel_emb=rel_emb
+            rollouts=rollouts
         )
 
         positive, negative, losses = calc_reward(
@@ -164,6 +165,26 @@ for i in range(0, epoch * 3):
 
     if not save_checkpoint:
         continue
+
+    if stage == 1:
+        all_bads = []
+        all_losses = []
+        for sample in test_samples:
+            label = loss_tools.type_to_label(sample['type'])
+
+            loss, bads = loss_on_sample(
+                sample=sample,
+                finder=prior,
+                beam=5,
+                reasoner=path_reasoner,
+                label=label
+            )
+            all_bads.append(bads)
+            all_losses.append(loss)
+        print('perf on test: avg bads: {:.2f}, avg loss: {:.4f}'.format(
+            np.average(np.array(all_bads)),
+            np.average(np.array(all_losses))
+        ))
 
     wave = int(i / 2) + 1
     if wave % 5 == 0 and stage == 1:

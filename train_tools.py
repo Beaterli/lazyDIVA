@@ -1,3 +1,5 @@
+import random
+
 from pathfinder.learn import step_by_step
 from pathreasoner.learn import learn_from_path, learn_from_paths
 
@@ -22,6 +24,23 @@ def show_type_distribution(samples):
             dist[sample_type] = 0
         dist[sample_type] = dist[sample_type] + 1
     print('type distribution: {}'.format(str(dist)))
+
+
+def even_types(samples, count):
+    positives = []
+    negatives = []
+    for sample in samples:
+        if sample['type'] == "+":
+            positives.append(sample)
+        else:
+            negatives.append(sample)
+
+    random.shuffle(positives)
+    random.shuffle(negatives)
+
+    total = positives[:int(count / 2)] + negatives[:int(count / 2)]
+    random.shuffle(total)
+    return total
 
 
 # 训练path finder

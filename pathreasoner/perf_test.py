@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from graph.graph import Graph
-from loss import type_to_label
+from loss_tools import type_to_label
 from pathreasoner.cnn_reasoner import CNNReasoner
 from pathreasoner.graph_sage_reasoner import GraphSAGEReasoner
 from pathreasoner.learn import learn_from_path
