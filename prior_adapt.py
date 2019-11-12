@@ -24,6 +24,7 @@ emb_size = 100
 rollouts = 20
 max_path_length = 5
 samples_count = 300
+checkpoint_index = 5
 save_checkpoint = True
 
 database = sys.argv[1]
@@ -60,21 +61,23 @@ print('using {}, {}'.format(path_reasoner_name, type(prior).__name__))
 
 likelihood_optimizer = tf.optimizers.Adam(1e-3)
 # 使用SGD避免训练失败
-prior_optimizer = tf.optimizers.Adam(1e-4)
+prior_optimizer = tf.optimizers.SGD(1e-2)
 
 likelihood_chkpt_file = checkpoint_dir + path_reasoner_name
 prior_chkpt_file = checkpoint_dir + 'prior'
 
 prior_checkpoint = tf.train.Checkpoint(model=prior)
-chk.load_latest_if_exists(
+chk.load_from_index(
     prior_checkpoint,
-    restore_dir, 'prior'
+    restore_dir, 'prior',
+    checkpoint_index
 )
 
 likelihood_checkpoint = tf.train.Checkpoint(model=path_reasoner)
-chk.load_latest_if_exists(
+chk.load_from_index(
     likelihood_checkpoint,
-    restore_dir, path_reasoner_name
+    restore_dir, path_reasoner_name,
+    checkpoint_index
 )
 
 
@@ -109,14 +112,14 @@ show_type_distribution(train_samples)
 # }]
 test_samples = even_types(graph.test_samples_of(task), int(samples_count / 4))
 
-for i in range(0, epoch * 3):
+for i in range(0, epoch * 2):
     epoch_start = time.time()
     all_loss = []
-    stage = i % 3
+    stage = i % 2
     teacher_rounds = 0
 
     for index, sample in enumerate(train_samples):
-        label = loss_tools.type_to_label(sample['type'])
+        label = loss_tools.type_to_one_hot(sample['type'])
 
         paths = rollout_sample(
             finder=prior,
@@ -169,7 +172,7 @@ for i in range(0, epoch * 3):
         all_bads = []
         all_losses = []
         for sample in test_samples:
-            label = loss_tools.type_to_label(sample['type'])
+            label = loss_tools.type_to_one_hot(sample['type'])
 
             loss, bads = loss_on_sample(
                 sample=sample,
@@ -179,7 +182,8 @@ for i in range(0, epoch * 3):
                 label=label
             )
             all_bads.append(bads)
-            all_losses.append(loss)
+            if loss is not None:
+                all_losses.append(loss)
         print('perf on test: avg bads: {:.2f}, avg loss: {:.4f}'.format(
             np.average(np.array(all_bads)),
             np.average(np.array(all_losses))

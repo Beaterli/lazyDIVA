@@ -2,12 +2,19 @@ import tensorflow as tf
 from tensorflow import math
 
 
-def type_to_label(episode_type):
+def type_to_one_hot(episode_type):
     if episode_type == '+':
         label_index = 0
     else:
         label_index = 1
     return tf.cast(tf.one_hot(label_index, 2), tf.float32)
+
+
+def type_to_label(episode_type):
+    if episode_type == '+':
+        return 0
+    else:
+        return 1
 
 
 def one_hot(target_action, action_prob, reward):

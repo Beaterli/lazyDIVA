@@ -43,6 +43,11 @@ def load_latest_if_exists(checkpoint, path, name):
         checkpoint.restore(path + file)
 
 
+def load_from_index(checkpoint, path, name, index):
+    print('loading checkpoint from {}'.format(path + name + '-{}'.format(index)))
+    checkpoint.restore(path + name + '-{}'.format(index))
+
+
 if __name__ == '__main__':
     print(latest_checkpoint_file('checkpoints/guided_posterior', 'posterior'))
     print(latest_checkpoint_file('checkpoints/guided_posterior', 'prior'))

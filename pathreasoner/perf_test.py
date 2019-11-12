@@ -1,8 +1,9 @@
 import numpy as np
 import tensorflow as tf
 
+import episodes as eps
 from graph.graph import Graph
-from loss_tools import type_to_label
+from loss_tools import type_to_one_hot
 from pathreasoner.cnn_reasoner import CNNReasoner
 from pathreasoner.graph_sage_reasoner import GraphSAGEReasoner
 from pathreasoner.learn import learn_from_path
@@ -13,7 +14,7 @@ def last_loss(reasoner, optimizer):
     for i in range(epoch):
         losses = []
         for (sample_type, path) in samples:
-            label = type_to_label(sample_type)
+            label = type_to_one_hot(sample_type)
             loss, gradient = learn_from_path(reasoner, path, label)
             optimizer.apply_gradients(zip(gradient, reasoner.trainable_variables))
             losses.append(loss)
@@ -26,7 +27,7 @@ def last_loss(reasoner, optimizer):
 def test_loss(reasoner):
     losses = []
     for (sample_type, path) in tests:
-        label = type_to_label(sample_type)
+        label = type_to_one_hot(sample_type)
         loss, gradient = learn_from_path(reasoner, path, label)
         losses.append(loss)
     avg = np.average(np.array(losses))
@@ -35,23 +36,12 @@ def test_loss(reasoner):
 
 
 if __name__ == '__main__':
-    task = '/film/director/film'
+    task = '/tv/tv_program/languages'
     graph = Graph('fb15k-237.db')
     graph.prohibit_relation(task)
-    samples = [
-        ('-', [6403, 441, 10211, 354, 4487]),
-        ('+', [3818, 98, 5261]),
-        ('-', [6850, 10, 6444]),
-        ('+', [574, 415, 3853, 129, 12159]),
-        ('-', [10564, 415, 4876, 403, 9838]),
-        ('+', [7117, 249, 458, 370, 5612, 441, 355])
-    ]
-    tests = [
-        ('+', [11211, 415, 3276, 403, 6452]),
-        ('-', [11312, 98, 13872, 397, 5392, 87, 10927]),
-        ('+', [5993, 98, 13403]),
-        ('-', [2500, 21, 4527, 174, 8424])
-    ]
+    episodes = eps.load_previous_episodes('{}.json'.format(task.replace(':', '_').replace('/', '_')))
+    samples = list(map(lambda e: (e['type'], e['paths'][0]), episodes[50:100]))
+    tests = list(map(lambda e: (e['type'], e['paths'][0]), episodes[200:250]))
     epoch = 10
     emb_size = 100
 

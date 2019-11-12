@@ -1,3 +1,6 @@
+import numpy as np
+import tensorflow as tf
+
 from pathreasoner.learn import learn_from_paths
 
 
@@ -12,6 +15,33 @@ def separate_dest(paths, to_id):
             negatives.append(path)
 
     return positives, negatives
+
+
+def predict_sample(sample, finder, beam, reasoner, rel_emb=None):
+    from_id = sample['from_id']
+    to_id = sample['to_id']
+
+    paths = list(map(
+        lambda state: state.path,
+        finder.paths_between(
+            from_id=from_id,
+            to_id=to_id,
+            relation=rel_emb,
+            width=beam
+        ))
+    )
+
+    positives, negatives = separate_dest(paths, to_id)
+
+    if len(positives) == 0:
+        return np.zeros(2, dtype='f4')
+
+    labels = []
+    for positive in positives:
+        probs = reasoner.relation_of_path(positive)
+        labels.append(probs)
+
+    return tf.reduce_mean(tf.stack(labels), axis=0)
 
 
 def loss_on_sample(sample, finder, beam, reasoner, label, rel_emb=None):
@@ -38,6 +68,6 @@ def loss_on_sample(sample, finder, beam, reasoner, label, rel_emb=None):
             label=label
         )
     else:
-        loss = 1.33
+        loss = None
 
     return loss, bads

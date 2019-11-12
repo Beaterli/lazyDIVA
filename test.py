@@ -8,15 +8,18 @@ import tensorflow as tf
 
 import checkpoints as chk
 from graph.graph import Graph
+from loss_tools import type_to_one_hot
 from pathfinder.lstmfinder import LSTMFinder
 from pathreasoner.cnn_reasoner import CNNReasoner
 from pathreasoner.graph_sage_reasoner import GraphSAGEReasoner
-from pathreasoner.learn import learn_from_path
+from test_tools import predict_sample
+from train_tools import even_types, show_type_distribution
 
 emb_size = 100
 beam = 5
 max_path_length = 5
-test_count = 50
+test_count = 75
+checkpoint_index = 5
 
 database = sys.argv[1]
 task = sys.argv[2]
@@ -25,68 +28,70 @@ reasoner_class = sys.argv[3]
 
 graph = Graph(database + '.db')
 graph.prohibit_relation(task)
+rel_embs = {
+    '+': graph.vec_of_rel_name(task),
+    '-': np.zeros(emb_size, dtype='f4')
+}
+
 checkpoint_dir = 'checkpoints/{}/{}/unified/{}/'.format(
     database,
     task_dir_name,
     reasoner_class)
 
-posterior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=False)
 prior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_length, prior=True)
 if reasoner_class == 'cnn':
     path_reasoner = CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
 else:
     path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=15)
 path_reasoner_name = type(path_reasoner).__name__
-print('using {}, {}, {}'.format(type(posterior).__name__, path_reasoner_name, type(prior).__name__))
-
-posterior_checkpoint = tf.train.Checkpoint(model=posterior)
-chk.load_latest_if_exists(
-    posterior_checkpoint,
-    checkpoint_dir, 'posterior'
-)
+print('using {}, {}'.format(path_reasoner_name, type(prior).__name__))
 
 prior_checkpoint = tf.train.Checkpoint(model=prior)
-chk.load_latest_if_exists(
+chk.load_from_index(
     prior_checkpoint,
-    checkpoint_dir, 'prior'
+    checkpoint_dir, 'prior',
+    checkpoint_index
 )
 
 likelihood_checkpoint = tf.train.Checkpoint(model=path_reasoner)
-chk.load_latest_if_exists(
+chk.load_from_index(
     likelihood_checkpoint,
-    checkpoint_dir, path_reasoner_name
+    checkpoint_dir, path_reasoner_name,
+    checkpoint_index
 )
 
 test_samples = graph.test_samples_of(task)
 # random.shuffle(test_samples)
-test_samples = test_samples[:test_count]
+test_samples = even_types(test_samples, test_count)
+show_type_distribution(test_samples)
 
 positive_rel_emb = graph.vec_of_rel_name(task)
 negative_rel_emb = np.zeros(emb_size, dtype='f4')
 
+labels = []
+predicts = []
+fails = 0
+accuracy = tf.keras.metrics.CategoricalAccuracy()
+for sample in test_samples:
+    label = type_to_one_hot(sample['type'])
+    rel_emb = rel_embs[sample['type']]
+    labels.append(label)
 
-def test(to_id, truth, paths):
-    bad_path = 0
-    losses = []
-    for path in paths:
-        if path[-1] != to_id:
-            bad_path += 1
+    predict = predict_sample(
+        sample=sample,
+        finder=prior,
+        beam=beam,
+        reasoner=path_reasoner
+    )
+    predicts.append(predict)
+    if predict[0] == 0.0 and predict[1] == 0.0:
+        fails += 1
 
-        diff, gradient = learn_from_path(path_reasoner, path, truth)
-        losses.append(diff)
-    return bad_path, losses
-
-
-prior_losses = []
-prior_fails = 0
-posterior_losses = []
-posterior_fails = 0
-
-
-prior_losses = np.array(prior_losses)
-posterior_losses = np.array(posterior_losses)
-print('average prior loss: {:.4f}, posterior loss: {:.4f}'.format(
-    np.average(prior_losses),
-    np.average(posterior_losses)
+accuracy.update_state(
+    labels,
+    predicts
+)
+print('prior accuracy: {:.4f}, prior fails: {}'.format(
+    accuracy.result().numpy(),
+    fails
 ))
-print('prior bad: {}, posterior bad: {}'.format(prior_fails, posterior_fails))

@@ -33,9 +33,6 @@ class LSTMFinder(tf.keras.Model):
         self.history_width = 2 * emb_size
         self.history_stack = tf.keras.layers.LSTMCell(
             units=self.history_width,
-            kernel_regularizer=tf.keras.regularizers.l2(),
-            bias_regularizer=tf.keras.regularizers.l2(),
-            recurrent_regularizer=tf.keras.regularizers.l2(),
             dtype=tf.float32
         )
 
@@ -45,15 +42,11 @@ class LSTMFinder(tf.keras.Model):
                                            dtype=tf.float32),
                 tf.keras.layers.Dense(
                     units=2 * emb_size,
-                    activation=tf.nn.relu,
-                    kernel_regularizer=tf.keras.regularizers.l2(),
-                    bias_regularizer=tf.keras.regularizers.l2()
+                    activation=tf.nn.relu
                 ),
                 tf.keras.layers.Dense(
                     units=2 * emb_size,
-                    activation=tf.nn.relu,
-                    kernel_regularizer=tf.keras.regularizers.l2(),
-                    bias_regularizer=tf.keras.regularizers.l2()
+                    activation=tf.nn.relu
                 )
             ])
         else:
@@ -62,15 +55,11 @@ class LSTMFinder(tf.keras.Model):
                                            dtype=tf.float32),
                 tf.keras.layers.Dense(
                     2 * emb_size,
-                    activation=tf.nn.relu,
-                    kernel_regularizer=tf.keras.regularizers.l2(),
-                    bias_regularizer=tf.keras.regularizers.l2()
+                    activation=tf.nn.relu
                 ),
                 tf.keras.layers.Dense(
                     2 * emb_size,
-                    activation=tf.nn.relu,
-                    kernel_regularizer=tf.keras.regularizers.l2(),
-                    bias_regularizer=tf.keras.regularizers.l2()
+                    activation=tf.nn.relu
                 )
             ])
 

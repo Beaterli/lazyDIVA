@@ -141,7 +141,7 @@ for i in range(0, epoch * 3):
     teacher_rounds = 0
 
     for index, sample in enumerate(train_samples):
-        label = loss_tools.type_to_label(sample['type'])
+        label = loss_tools.type_to_one_hot(sample['type'])
         rel_emb = rel_embs[sample['type']]
 
         paths = rollout_sample(
@@ -201,7 +201,7 @@ for i in range(0, epoch * 3):
         all_bads = []
         all_losses = []
         for sample in test_samples:
-            label = loss_tools.type_to_label(sample['type'])
+            label = loss_tools.type_to_one_hot(sample['type'])
             rel_emb = rel_embs[sample['type']]
 
             loss, bads = loss_on_sample(
@@ -212,8 +212,9 @@ for i in range(0, epoch * 3):
                 label=label,
                 rel_emb=rel_emb
             )
+            if loss is not None:
+                all_losses.append(loss)
             all_bads.append(bads)
-            all_losses.append(loss)
         print('perf on test: avg bads: {:.2f}, avg loss: {:.4f}'.format(
             np.average(np.array(all_bads)),
             np.average(np.array(all_losses))

@@ -6,7 +6,7 @@ from time import time
 from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
 
-task = '/film/director/film'
+task = '/tv/tv_program/languages'
 episodes_json = '{}.json'.format(task.replace(':', '_').replace('/', '_'))
 db_name = 'fb15k-237.db'
 search_workers = 6
