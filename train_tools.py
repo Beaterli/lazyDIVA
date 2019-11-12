@@ -62,8 +62,8 @@ def train_finder(finder, optimizer, episodes, rel_emb=None):
 
 
 # 搜索失败时重新训练
-def teach_finder(finder, optimizer, rel_emb=None, sample=None, teacher=None):
-    if sample is None:
+def teach_finder(finder, optimizer, sample, rel_emb=None, teacher=None):
+    if teacher is not None:
         states = teacher.paths_between(sample['from_id'], sample['to_id'], 5)
         paths = list(map(lambda s: s.path, states))
     else:
