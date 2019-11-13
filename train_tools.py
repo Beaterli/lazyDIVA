@@ -19,7 +19,7 @@ def clip_range(value, min_value, max_value):
 def show_type_distribution(samples):
     dist = {}
     for sample in samples:
-        sample_type = sample['type']
+        sample_type = sample['rid']
         if sample_type not in dist:
             dist[sample_type] = 0
         dist[sample_type] = dist[sample_type] + 1
@@ -27,20 +27,21 @@ def show_type_distribution(samples):
 
 
 def even_types(samples, count):
-    positives = []
-    negatives = []
+    types = {}
     for sample in samples:
-        if sample['type'] == "+":
-            positives.append(sample)
+        rid = sample['rid']
+        if rid in types:
+            types[rid].append(sample)
         else:
-            negatives.append(sample)
+            types[rid] = [sample]
 
-    random.shuffle(positives)
-    random.shuffle(negatives)
+    count_per_type = int(count / len(types))
+    evened = []
+    for type_samples in types.values():
+        evened = evened + type_samples[:count_per_type]
 
-    total = positives[:int(count / 2)] + negatives[:int(count / 2)]
-    random.shuffle(total)
-    return total
+    random.shuffle(evened)
+    return evened
 
 
 # 训练path finder

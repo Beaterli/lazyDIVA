@@ -18,19 +18,19 @@ from train_tools import even_types, show_type_distribution
 emb_size = 100
 beam = 5
 max_path_length = 5
-test_count = 75
-checkpoint_index = 5
+test_count = 150
+checkpoint_index = 2
 
-database = sys.argv[1]
-task = sys.argv[2]
+database = 'weibo'
+task = 'event_type'
 task_dir_name = task.replace('/', '_').replace(':', '_')
-reasoner_class = sys.argv[3]
+reasoner_class = sys.argv[1]
 
 graph = Graph(database + '.db')
 graph.prohibit_relation(task)
 rel_embs = {
-    '+': graph.vec_of_rel_name(task),
-    '-': np.zeros(emb_size, dtype='f4')
+    10: graph.vec_of_rel_name('entertainment'),
+    12: graph.vec_of_rel_name('political')
 }
 
 checkpoint_dir = 'checkpoints/{}/{}/unified/{}/'.format(
@@ -60,7 +60,7 @@ chk.load_from_index(
     checkpoint_index
 )
 
-test_samples = graph.test_samples_of(task)
+test_samples = graph.test_samples()
 # random.shuffle(test_samples)
 test_samples = even_types(test_samples, test_count)
 show_type_distribution(test_samples)
@@ -73,8 +73,7 @@ predicts = []
 fails = 0
 accuracy = tf.keras.metrics.CategoricalAccuracy()
 for sample in test_samples:
-    label = type_to_one_hot(sample['type'])
-    rel_emb = rel_embs[sample['type']]
+    label = type_to_one_hot(sample['rid'])
     labels.append(label)
 
     predict = predict_sample(

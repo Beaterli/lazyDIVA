@@ -5,13 +5,14 @@ from time import time
 
 from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
+from pathfinder.brute.dfsfinder import DFSFinder
 
-task = '/tv/tv_program/languages'
+task = 'event_type'
 episodes_json = '{}.json'.format(task.replace(':', '_').replace('/', '_'))
-db_name = 'fb15k-237.db'
-search_workers = 6
-max_path_length = 5
-teacher_path_count = 5
+db_name = 'weibo.db'
+search_workers = 4
+max_path_length = 6
+teacher_path_count = 1
 
 
 def load_previous_episodes(file_name):
@@ -34,8 +35,9 @@ def save_episodes(episodes):
 def search(samples):
     search_result = []
     graph = Graph(db_name)
-    graph.prohibit_relation(task)
-    finder = BFSFinder(graph, max_path_length)
+    graph.prohibit_relation('entertainment')
+    graph.prohibit_relation('political')
+    finder = DFSFinder(graph, max_path_length)
     for sample in samples:
         start_time = time()
         sample['paths'] = finder.paths_between(
@@ -45,6 +47,7 @@ def search(samples):
         )
         sample['paths'] = list(map(lambda s: s.path, sample['paths']))
         search_result.append(sample)
+        print('finished {}'.format(sample))
         duration = time() - start_time
         if duration > 5:
             print('episode: {} -> {} takes {:.2f}s!'.format(sample['from_id'], sample["to_id"], duration))
@@ -65,15 +68,10 @@ def find_episode(episodes, from_id, to_id):
 
 if __name__ == '__main__':
     graph = Graph(db_name)
-    graph.prohibit_relation(task)
 
-    positive_samples = graph.samples_of(task, 'train', '+')
-    negative_samples = graph.samples_of(task, 'train', '-')
-    random.shuffle(negative_samples)
-    negative_samples = negative_samples[:len(positive_samples)]
-    teacher_samples = positive_samples + negative_samples
+    teacher_samples = graph.train_samples()
+
     random.shuffle(teacher_samples)
-    # teacher_samples = teacher_samples[:5]
     print('using {} samples'.format(len(teacher_samples)))
 
     episodes = []

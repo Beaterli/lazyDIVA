@@ -3,7 +3,7 @@ from tensorflow import math
 
 
 def type_to_one_hot(episode_type):
-    if episode_type == '+':
+    if episode_type == 10:
         label_index = 0
     else:
         label_index = 1
@@ -11,7 +11,7 @@ def type_to_one_hot(episode_type):
 
 
 def type_to_label(episode_type):
-    if episode_type == '+':
+    if episode_type == 10:
         return 0
     else:
         return 1

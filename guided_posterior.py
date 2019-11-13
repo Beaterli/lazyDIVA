@@ -15,17 +15,18 @@ from train_tools import teach_finder, show_type_distribution
 teacher_epoch = 25
 teacher_path_count = 5
 max_path_length = 5
-database = sys.argv[1]
-task = sys.argv[2]
+database = 'weibo'
+task = 'event_type'
 emb_size = 100
 sample_count = 500
 save_checkpoint = True
 
 graph = Graph(database + '.db')
-graph.prohibit_relation(task)
+graph.prohibit_relation('entertainment')
+graph.prohibit_relation('political')
 rel_embs = {
-    '+': graph.vec_of_rel_name(task),
-    '-': np.zeros(emb_size, dtype='f4')
+    10: graph.vec_of_rel_name('entertainment'),
+    12: graph.vec_of_rel_name('political')
 }
 
 student = LSTMFinder(graph=graph, emb_size=emb_size, graph_sage_state=False, max_path_length=max_path_length)
@@ -51,7 +52,7 @@ def learn_epoch(epoch, supervised_samples):
             finder=student,
             optimizer=optimizer,
             sample=sample,
-            rel_emb=rel_embs[sample['type']]
+            rel_emb=rel_embs[sample['rid']]
         )
 
     np_probs = np.array(probs)
