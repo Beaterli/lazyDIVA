@@ -36,14 +36,13 @@ def test_loss(reasoner):
 
 
 if __name__ == '__main__':
-    task = 'event_type'
-    graph = Graph('weibo.db')
-    graph.prohibit_relation('entertainment')
-    graph.prohibit_relation('political')
+    task = '/tv/tv_program/languages'
+    graph = Graph('fb15k-237.db')
+    graph.prohibit_relation(task)
     episodes = eps.load_previous_episodes('{}.json'.format(task.replace(':', '_').replace('/', '_')))
-    samples = list(map(lambda e: (e['rid'], e['paths'][0]), episodes[50:350]))
-    tests = list(map(lambda e: (e['rid'], e['paths'][0]), episodes[1000:1100]))
-    epoch = 15
+    samples = list(map(lambda e: (e['type'], e['paths'][0]), episodes[50:100]))
+    tests = list(map(lambda e: (e['type'], e['paths'][0]), episodes[200:250]))
+    epoch = 10
     emb_size = 100
 
     reasoners = [

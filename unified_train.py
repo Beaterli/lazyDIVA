@@ -21,24 +21,23 @@ from train_tools import train_finder, train_reasoner, teach_finder, rollout_samp
 
 epoch = 25
 emb_size = 100
-rollouts = 5
+rollouts = 20
 print('rollouts: {}'.format(rollouts))
 max_path_length = 5
 samples_count = 300
 save_checkpoint = True
 restore_checkpoint = False
 
-database = 'weibo'
-task = 'event_type'
+database = sys.argv[1]
+task = sys.argv[2]
 task_dir_name = task.replace('/', '_').replace(':', '_')
-reasoner_class = sys.argv[1]
+reasoner_class = sys.argv[3]
 
 graph = Graph(database + '.db')
-graph.prohibit_relation('entertainment')
-graph.prohibit_relation('political')
+graph.prohibit_relation(task)
 rel_embs = {
-    10: graph.vec_of_rel_name('entertainment'),
-    12: graph.vec_of_rel_name('political')
+    '+': graph.vec_of_rel_name(task),
+    '-': np.zeros(emb_size, dtype='f4')
 }
 
 checkpoint_dir = 'checkpoints/{}/{}/unified/{}/'.format(
@@ -133,7 +132,7 @@ show_type_distribution(train_samples)
 #     'to_id': 68461,
 #     'type': '-'
 # }]
-test_samples = even_types(graph.test_samples(), int(samples_count / 4))
+test_samples = even_types(graph.test_samples_of(task), int(samples_count / 4))
 
 for i in range(0, epoch * 3):
     epoch_start = time.time()
@@ -142,8 +141,8 @@ for i in range(0, epoch * 3):
     teacher_rounds = 0
 
     for index, sample in enumerate(train_samples):
-        label = loss_tools.type_to_one_hot(sample['rid'])
-        rel_emb = rel_embs[sample['rid']]
+        label = loss_tools.type_to_one_hot(sample['type'])
+        rel_emb = rel_embs[sample['type']]
 
         paths = rollout_sample(
             finder=posterior,
@@ -165,7 +164,7 @@ for i in range(0, epoch * 3):
         if stage == 0:
             train_posterior(positive + negative, rel_emb)
             # 成功路径过少，需要重新监督学习
-            if len(positive) < 1:
+            if len(positive) < 2:
                 teach_finder(
                     finder=posterior,
                     optimizer=posterior_optimizer,
@@ -202,8 +201,8 @@ for i in range(0, epoch * 3):
         all_bads = []
         all_losses = []
         for sample in test_samples:
-            label = loss_tools.type_to_one_hot(sample['rid'])
-            rel_emb = rel_embs[sample['rid']]
+            label = loss_tools.type_to_one_hot(sample['type'])
+            rel_emb = rel_embs[sample['type']]
 
             loss, bads = loss_on_sample(
                 sample=sample,

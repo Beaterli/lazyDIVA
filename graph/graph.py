@@ -29,38 +29,55 @@ class Graph(object):
             self.neighbors[row[0]].append(Link(row[1], row[2]))
         print('graph load complete!')
 
-    def samples_of(self, stage, relation_text=None):
+    def samples_of(self, relation_text, stage, type=None):
         samples = []
 
-        sql = '''select from_id, to_id, rid from samples where stage = ?'''
-        params = [stage]
-        if relation_text is not None:
-            sql = sql + ''' and rid = (select rid from relations where relation = ?)'''
-            params.append(relation_text)
+        sql = '''select from_id, to_id, "type" from samples 
+                where rid = (select rid from relations where relation = ?) and stage = ?'''
+        params = [relation_text, stage]
+        if type is not None:
+            sql = sql + ''' and type = ?'''
+            params.append(type)
 
         for row in self.conn.execute(sql, params):
             samples.append({
                 'from_id': row[0],
                 'to_id': row[1],
-                'rid': row[2]
+                'type': row[2]
             })
         return samples
 
-    def train_samples(self):
-        return self.samples_of("train")
+    def train_samples_of(self, relation_text):
+        return self.samples_of(relation_text, "train")
 
-    def test_samples(self):
-        return self.samples_of("test")
+    def negative_train_samples_of(self, relation_text):
+        samples = []
+
+        sql = '''select from_id, to_id, "type" from samples 
+                where rid = (select rid from relations where relation = ?) 
+                and stage = ? 
+                and type = ?
+                group by from_id'''
+        params = [relation_text, 'train', '-']
+
+        for row in self.conn.execute(sql, params):
+            samples.append({
+                'from_id': row[0],
+                'to_id': row[1],
+                'type': row[2]
+            })
+        return samples
+
+    def test_samples_of(self, relation_text):
+        return self.samples_of(relation_text, "test")
 
     def prohibit_relation(self, relation_text):
-        new_prohibits = []
+        self.prohibits.clear()
         for row in self.conn.execute('''select rid from relations where relation = ? or relation = ?''',
                                      (relation_text, relation_text + '_inv')).fetchall():
-            new_prohibits.append(row[0])
-        if len(new_prohibits) == 0:
+            self.prohibits.append(row[0])
+        if len(self.prohibits) == 0:
             print('relation: ' + relation_text + ' don\'t exists!')
-        self.prohibits = self.prohibits + new_prohibits
-        print('{} prohibited'.format(self.prohibits))
 
     def neighbors_of(self, ent_id):
         neighbors = []
