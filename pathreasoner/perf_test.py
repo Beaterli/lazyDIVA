@@ -47,7 +47,18 @@ if __name__ == '__main__':
     emb_size = 100
 
     reasoners = [
-        (GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=25, step_feature_width=2 * emb_size,
+        (GraphSAGEReasoner(graph=graph,
+                           emb_size=emb_size,
+                           neighbors=25,
+                           aggregator='max_pooling',
+                           step_feature_width=2 * emb_size,
+                           random_sample=True),
+         tf.optimizers.Adam(1e-3)),
+        (GraphSAGEReasoner(graph=graph,
+                           emb_size=emb_size,
+                           neighbors=25,
+                           aggregator='gcn',
+                           step_feature_width=2 * emb_size,
                            random_sample=True),
          tf.optimizers.Adam(1e-3)),
         (CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=5),

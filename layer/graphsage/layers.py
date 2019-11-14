@@ -138,6 +138,130 @@ class GraphConv(tf.keras.layers.Layer):
         return self.act(output)
 
 
+class MaxPooling(tf.keras.layers.Layer):
+    """ Aggregates via max-pooling over MLP functions.
+    """
+
+    def __init__(self,
+                 input_feature_dim,
+                 output_feature_dim,
+                 neighbors=None,
+                 model_size="small",
+                 dropout=0.,
+                 bias=False,
+                 act=tf.nn.relu,
+                 concat=False,
+                 name='MaxPooling',
+                 dtype=None,
+                 dynamic=True,
+                 **kwargs):
+        super(MaxPooling, self).__init__(
+            trainable=True,
+            name=name,
+            dtype=dtype,
+            dynamic=dynamic,
+            **kwargs)
+
+        self.dropout = dropout
+        self.use_bias = bias
+        self.act = act
+        self.concat = concat
+
+        if model_size == "small":
+            hidden_dim = self.hidden_dim = 512
+        else:
+            hidden_dim = self.hidden_dim = 1024
+
+        self.mlp_weights = self.add_weight(
+            name='mlp_weights',
+            shape=(input_feature_dim, hidden_dim),
+            initializer='glorot_uniform',
+            regularizer=tf.keras.regularizers.l2(),
+            trainable=True
+        )
+
+        self.neighbor_weights = self.add_weight(
+            name='neighbor_weights',
+            shape=(hidden_dim, output_feature_dim),
+            initializer='glorot_uniform',
+            trainable=True
+        )
+
+        self.self_weights = self.add_weight(
+            name='self_weights',
+            shape=(input_feature_dim, output_feature_dim),
+            initializer='glorot_uniform',
+            trainable=True
+        )
+
+        if self.use_bias:
+            self.mlp_bias = self.add_weight(
+                name='output_bias',
+                shape=(hidden_dim,),
+                initializer='zeros',
+                trainable=True
+            )
+
+            self.output_bias = self.add_weight(
+                name='output_bias',
+                shape=(output_feature_dim,),
+                initializer='zeros',
+                trainable=True
+            )
+
+        self.input_feature_dim = input_feature_dim
+        self.output_feature_dim = output_feature_dim
+        self.neighbors = neighbors
+
+    def get_neighbor_size(self):
+        return self.neighbors
+
+    def get_input_width(self):
+        return self.input_feature_dim
+
+    def get_output_width(self):
+        return self.output_feature_dim
+
+    def mlp(self, inputs):
+        x = inputs
+
+        if self.dropout > 0.0:
+            x = tf.nn.dropout(x, 1 - self.dropout)
+
+        # transform
+        output = tf.matmul(x, self.mlp_weights)
+
+        # bias
+        if self.use_bias:
+            output += self.mlp_bias
+
+        return self.act(output)
+
+    def call(self, inputs):
+        root_feature, neighbor_features = inputs
+
+        hidden_features = self.mlp(neighbor_features)
+
+        hidden_features = tf.expand_dims(
+            tf.math.reduce_max(hidden_features, axis=0),
+            axis=0
+        )
+
+        from_neighbors = tf.matmul(hidden_features, self.neighbor_weights)
+        from_root = tf.matmul(root_feature, self.self_weights)
+
+        if not self.concat:
+            output = tf.math.add_n([from_root, from_neighbors])
+        else:
+            output = tf.concat([from_root, from_neighbors], axis=1)
+
+        # bias
+        if self.use_bias:
+            output += self.output_bias
+
+        return self.act(output)
+
+
 if __name__ == '__main__':
     neighbor_tensor = tf.constant([
         [1.0, 2.0, 3.0, 4.0],
