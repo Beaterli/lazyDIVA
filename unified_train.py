@@ -121,9 +121,9 @@ def train_posterior(episodes, relation_emb):
     )
 
 
-train_samples = eps.load_previous_episodes('{}.json'.format(task.replace(':', '_').replace('/', '_')))
+all_train_samples = eps.load_previous_episodes('{}.json'.format(task.replace(':', '_').replace('/', '_')))
 # random.shuffle(train_samples)
-train_samples = train_samples[:samples_count]
+train_samples = all_train_samples[:samples_count]
 print('using {} train samples'.format(len(train_samples)))
 show_type_distribution(train_samples)
 # train_samples = [{
@@ -131,7 +131,10 @@ show_type_distribution(train_samples)
 #     'to_id': 68461,
 #     'type': '-'
 # }]
-test_samples = train_samples[samples_count + 100:samples_count + 100 + int(samples_count / 4)]
+test_index = samples_count + 1
+test_count = int(samples_count / 4)
+test_samples = all_train_samples[test_index:test_index + test_count]
+show_type_distribution(test_samples)
 
 for i in range(0, epoch * 3):
     epoch_start = time.time()
