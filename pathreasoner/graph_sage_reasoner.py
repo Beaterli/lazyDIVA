@@ -1,12 +1,12 @@
 import tensorflow as tf
 
 from layer.graphsage.aggregate import recursive
-from layer.graphsage.layers import GraphConv, NeighborSampler
+from layer.graphsage.layers import GraphConv, MaxPooling, NeighborSampler
 
 
 class GraphSAGEReasoner(tf.keras.Model):
     def __init__(self, graph, emb_size,
-                 vertical_mean=True, step_feature_width=None,
+                 aggregator='max_pooling', step_feature_width=None,
                  neighbors=None, random_sample=True):
         super(GraphSAGEReasoner, self).__init__()
         self.graph = graph
@@ -18,12 +18,21 @@ class GraphSAGEReasoner(tf.keras.Model):
 
         self.sampler = NeighborSampler(graph=graph, random_sample=random_sample)
 
-        self.aggregator = GraphConv(
-            input_feature_dim=2 * self.emb_size,
-            output_feature_dim=step_feature_width,
-            neighbors=neighbors,
-            vertical_mean=vertical_mean,
-            dtype=tf.float32)
+        if aggregator == 'max_pooling':
+            self.aggregator = MaxPooling(
+                input_feature_dim=2 * self.emb_size,
+                output_feature_dim=step_feature_width,
+                neighbors=neighbors,
+                dtype=tf.float32
+            )
+        elif aggregator == 'gcn':
+            self.aggregator = GraphConv(
+                input_feature_dim=2 * self.emb_size,
+                output_feature_dim=step_feature_width,
+                neighbors=neighbors,
+                dtype=tf.float32)
+        else:
+            print('unknown aggregator param: ' + aggregator)
 
         self.step_lstm = tf.keras.layers.LSTMCell(
             units=step_feature_width,

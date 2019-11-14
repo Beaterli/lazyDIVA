@@ -16,8 +16,7 @@ from pathfinder.lstmfinder import LSTMFinder
 from pathreasoner.cnn_reasoner import CNNReasoner
 from pathreasoner.graph_sage_reasoner import GraphSAGEReasoner
 from test_tools import loss_on_sample
-from train_tools import train_finder, train_reasoner, teach_finder, rollout_sample, calc_reward, show_type_distribution, \
-    even_types
+from train_tools import train_finder, train_reasoner, teach_finder, rollout_sample, calc_reward, show_type_distribution
 
 epoch = 25
 emb_size = 100
@@ -52,7 +51,7 @@ prior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_leng
 if reasoner_class == 'cnn':
     path_reasoner = CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
 else:
-    path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=15)
+    path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=25)
 
 path_reasoner_name = type(path_reasoner).__name__
 print('using {}, {}, {}'.format(type(posterior).__name__, path_reasoner_name, type(prior).__name__))
@@ -132,7 +131,7 @@ show_type_distribution(train_samples)
 #     'to_id': 68461,
 #     'type': '-'
 # }]
-test_samples = even_types(graph.test_samples_of(task), int(samples_count / 4))
+test_samples = train_samples[samples_count + 100:samples_count + 100 + int(samples_count / 4)]
 
 for i in range(0, epoch * 3):
     epoch_start = time.time()
