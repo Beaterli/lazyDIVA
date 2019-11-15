@@ -80,7 +80,8 @@ for sample in test_samples:
         sample=sample,
         finder=prior,
         beam=beam,
-        reasoner=path_reasoner
+        reasoner=path_reasoner,
+        check_dest=True
     )
     predicts.append(predict)
     if predict[0] == 0.0 and predict[1] == 0.0:
