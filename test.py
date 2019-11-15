@@ -18,8 +18,8 @@ from train_tools import even_types, show_type_distribution
 emb_size = 100
 beam = 5
 max_path_length = 5
-test_count = 150
-checkpoint_index = 2
+test_count = 1000
+checkpoint_index = 5
 
 database = 'weibo'
 task = 'event_type'
@@ -60,9 +60,9 @@ chk.load_from_index(
     checkpoint_index
 )
 
-test_samples = graph.test_samples()
+test_samples = graph.test_samples()[:test_count]
 # random.shuffle(test_samples)
-test_samples = even_types(test_samples, test_count)
+# test_samples = even_types(test_samples, test_count)
 show_type_distribution(test_samples)
 
 positive_rel_emb = graph.vec_of_rel_name(task)
