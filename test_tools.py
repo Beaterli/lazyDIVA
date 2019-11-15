@@ -17,7 +17,7 @@ def separate_dest(paths, to_id):
     return positives, negatives
 
 
-def predict_sample(sample, finder, beam, reasoner, rel_emb=None):
+def predict_sample(sample, finder, beam, reasoner, rel_emb=None, check_dest=True):
     from_id = sample['from_id']
     to_id = sample['to_id']
 
@@ -31,7 +31,10 @@ def predict_sample(sample, finder, beam, reasoner, rel_emb=None):
         ))
     )
 
-    positives, negatives = separate_dest(paths, to_id)
+    if check_dest:
+        positives, negatives = separate_dest(paths, to_id)
+    else:
+        positives = paths
 
     if len(positives) == 0:
         return np.zeros(2, dtype='f4')
