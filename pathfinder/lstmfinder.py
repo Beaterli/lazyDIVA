@@ -71,7 +71,7 @@ class LSTMFinder(tf.keras.Model):
         initial_state = self.history_stack.get_initial_state(inputs=initial_input)
         return FinderState(path_step=from_id, history_state=(initial_input, initial_state[0], initial_state[1]))
 
-    def available_action_probs(self, state, label_vec=None):
+    def available_action_probs(self, state, to_id, label_vec=None):
         path = state.path
         current_id = path[-1]
         # 选择邻接矩阵
@@ -107,7 +107,7 @@ class LSTMFinder(tf.keras.Model):
 
         history_state = (output_vector[0], stack_state[0], stack_state[1])
 
-        ent_vec = self.graph.vec_of_ent(current_id)
+        ent_vec = self.graph.vec_of_ent(to_id)
 
         # 根据relation计算prior特征或posterior特征
         if label_vec is not None:
@@ -156,7 +156,7 @@ class LSTMFinder(tf.keras.Model):
 
             counter = 0
             for index, state in enumerate(states):
-                candidates, candidate_probs, history_state = self.available_action_probs(state, relation)
+                candidates, candidate_probs, history_state = self.available_action_probs(state, to_id, relation)
                 if len(candidates) == 0:
                     continue
 
