@@ -1,6 +1,6 @@
-import numpy as np
 import tensorflow as tf
 
+from loss_tools import type_to_one_hot
 from pathreasoner.learn import learn_from_paths
 
 
@@ -37,7 +37,7 @@ def predict_sample(sample, finder, beam, reasoner, rel_emb=None, check_dest=True
         positives = paths
 
     if len(positives) == 0:
-        return np.zeros(2, dtype='f4')
+        return type_to_one_hot('-')
 
     labels = []
     for positive in positives:
