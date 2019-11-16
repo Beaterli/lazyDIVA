@@ -19,6 +19,7 @@ def zeros_bottom(mat, height):
     mat_height = mat.shape.dims[0]
     if mat_height < height:
         return tf.pad(mat, [[0, height - mat_height], [0, 0]])
+    return mat
 
 
 if __name__ == '__main__':
