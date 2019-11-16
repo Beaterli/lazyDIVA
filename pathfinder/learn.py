@@ -13,7 +13,7 @@ def step_by_step(finder, path, reward, rel_emb=None):
     for step_index in range(1, len(path), 2):
         with tf.GradientTape() as tape:
             candidates, student_action_probs, history_state \
-                = finder.available_action_probs(student_state, rel_emb)
+                = finder.available_action_probs(student_state, path[-1], rel_emb)
 
             action_index = index_of(candidates, path[step_index], path[step_index + 1])
 
