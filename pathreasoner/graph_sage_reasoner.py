@@ -40,6 +40,13 @@ class GraphSAGEReasoner(tf.keras.Model):
 
         self.cnn_windows = [
             tf.keras.Sequential([
+                tf.keras.layers.Conv1D(filters=cnn_feature_size, kernel_size=1,
+                                       input_shape=(max_path_length + 1, step_feature_width),
+                                       activation=tf.nn.relu,
+                                       dtype=tf.float32),
+                tf.keras.layers.MaxPool1D(max_path_length + 1)
+            ]),
+            tf.keras.Sequential([
                 tf.keras.layers.Conv1D(filters=cnn_feature_size, kernel_size=2,
                                        input_shape=(max_path_length + 1, step_feature_width),
                                        activation=tf.nn.relu,
