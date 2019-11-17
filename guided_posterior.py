@@ -18,7 +18,7 @@ max_path_length = 5
 database = sys.argv[1]
 task = sys.argv[2]
 emb_size = 100
-sample_count = 500
+sample_count = 200
 save_checkpoint = True
 
 graph = Graph(database + '.db')
@@ -54,17 +54,22 @@ def learn_epoch(epoch, supervised_samples):
             rel_emb=rel_embs[sample['type']]
         )
 
-    np_probs = np.array(probs)
+    np_probs = np.average(np.array(probs))
     print('epoch: {} finished in {:.2f} seconds, prob stats: avg: {:.4f}'.format(
         epoch + 1,
         time.time() - start_time,
-        np.average(np_probs)
+        np_probs
     ))
+    return np_probs
 
 
+epoch_probs = []
 print('guided learning started! using {} samples'.format(len(samples)))
 for i in range(teacher_epoch):
-    learn_epoch(i, samples)
+    epoch_probs.append(learn_epoch(i, samples))
+    if i > 4 and epoch_probs[-1] - epoch_probs[-3] < 0.0075:
+        print('reached loss plane! terminated')
+        break
 
 if save_checkpoint:
     checkpoint.save(chkpt_file)
