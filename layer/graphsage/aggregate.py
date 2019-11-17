@@ -39,10 +39,6 @@ def recursive(graph, sampler, aggregators, root_id, rel_id=None, depth=0, skip=(
 
         neighbor_features.append(feature)
 
-    if len(neighbor_features) == 0:
-        return root_emb
-
-    neighbor_features = tf.concat(neighbor_features, axis=0)
     if rel_id is None:
         padded_root_emb = tf.pad(root_emb, [[0, 0], [rel_emb_size, input_width - rel_emb_size - root_emb_size]])
     else:
@@ -51,6 +47,11 @@ def recursive(graph, sampler, aggregators, root_id, rel_id=None, depth=0, skip=(
             tf.concat([root_rel_emb, root_emb], axis=1),
             input_width - rel_emb_size - root_emb_size
         )
+
+    if len(neighbor_features) == 0:
+        return padded_root_emb
+
+    neighbor_features = tf.concat(neighbor_features, axis=0)
     root_feature = aggregators[depth](inputs=[padded_root_emb, neighbor_features])
 
     return root_feature
