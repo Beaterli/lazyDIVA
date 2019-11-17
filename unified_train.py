@@ -19,12 +19,12 @@ from test_tools import loss_on_sample
 from train_tools import train_finder, train_reasoner, teach_finder, rollout_sample, calc_reward, show_type_distribution, \
     even_types
 
-epoch = 25
+epoch = 20
 emb_size = 100
 rollouts = 5
 print('rollouts: {}'.format(rollouts))
 max_path_length = 5
-samples_count = 300
+samples_count = 100
 save_checkpoint = True
 restore_checkpoint = False
 
@@ -53,14 +53,14 @@ prior = LSTMFinder(graph=graph, emb_size=emb_size, max_path_length=max_path_leng
 if reasoner_class == 'cnn':
     path_reasoner = CNNReasoner(graph=graph, emb_size=emb_size, max_path_length=max_path_length)
 else:
-    path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=25)
+    path_reasoner = GraphSAGEReasoner(graph=graph, emb_size=emb_size, neighbors=25, max_path_length=max_path_length)
 
 path_reasoner_name = type(path_reasoner).__name__
 print('using {}, {}, {}'.format(type(posterior).__name__, path_reasoner_name, type(prior).__name__))
 
-likelihood_optimizer = tf.optimizers.Adam(1e-3)
+likelihood_optimizer = tf.optimizers.Adam(1e-4)
 # 使用SGD避免训练失败
-posterior_optimizer = tf.optimizers.SGD(1e-2)
+posterior_optimizer = tf.optimizers.Adam(1e-4)
 # 使用Adam提升学习速度
 prior_optimizer = tf.optimizers.Adam(1e-3)
 
@@ -134,7 +134,7 @@ show_type_distribution(train_samples)
 #     'type': '-'
 # }]
 test_index = samples_count + 1
-test_count = int(samples_count / 4)
+test_count = int(samples_count / 1)
 test_samples = all_train_samples[test_index:test_index + test_count]
 show_type_distribution(test_samples)
 
@@ -201,7 +201,7 @@ for i in range(0, epoch * 3):
 
     wave = int(i / 3) + 1
 
-    if wave % 3 == 0 and stage == 2:
+    if wave % 2 == 0 and stage == 2:
         all_bads = []
         all_losses = []
         for sample in test_samples:
@@ -227,7 +227,7 @@ for i in range(0, epoch * 3):
     if not save_checkpoint:
         continue
 
-    if wave % 5 == 0 and stage == 2:
+    if wave % 2 == 0 and stage == 2:
         posterior_checkpoint.save(posterior_chkpt_file)
         likelihood_checkpoint.save(likelihood_chkpt_file)
         prior_checkpoint.save(prior_chkpt_file)
