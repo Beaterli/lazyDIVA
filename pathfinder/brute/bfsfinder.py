@@ -2,6 +2,8 @@ from queue import Queue
 
 from pathfinder.finderstate import FinderState
 
+max_queue_size = 4 * 1024 * 1024
+
 
 class BFSFinder(object):
     def __init__(self, env_graph, max_path_length):
@@ -16,6 +18,10 @@ class BFSFinder(object):
         ))
 
         while not queue.empty():
+            if queue.qsize() > max_queue_size:
+                print('ended search due to large queue')
+                break
+
             current_state = queue.get()
             current_id = current_state.path[-1]
             current_length = len(current_state.path)
