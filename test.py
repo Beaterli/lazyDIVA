@@ -18,8 +18,7 @@ from train_tools import even_types, show_type_distribution
 emb_size = 100
 beam = 5
 max_path_length = 5
-test_count = 1000
-checkpoint_index = 5
+test_count = 320
 
 database = 'weibo'
 task = 'event_type'
@@ -47,51 +46,49 @@ path_reasoner_name = type(path_reasoner).__name__
 print('using {}, {}'.format(path_reasoner_name, type(prior).__name__))
 
 prior_checkpoint = tf.train.Checkpoint(model=prior)
-chk.load_from_index(
-    prior_checkpoint,
-    checkpoint_dir, 'prior',
-    checkpoint_index
-)
 
 likelihood_checkpoint = tf.train.Checkpoint(model=path_reasoner)
-chk.load_from_index(
-    likelihood_checkpoint,
-    checkpoint_dir, path_reasoner_name,
-    checkpoint_index
-)
 
-test_samples = graph.test_samples()[:test_count]
+test_samples = graph.test_samples()[500:500+test_count]
 # random.shuffle(test_samples)
-# test_samples = even_types(test_samples, test_count)
 show_type_distribution(test_samples)
 
-positive_rel_emb = graph.vec_of_rel_name(task)
-negative_rel_emb = np.zeros(emb_size, dtype='f4')
+for checkpoint_index in range(1, 11, 1):
 
-labels = []
-predicts = []
-fails = 0
-accuracy = tf.keras.metrics.CategoricalAccuracy()
-for sample in test_samples:
-    label = type_to_one_hot(sample['rid'])
-    labels.append(label)
-
-    predict = predict_sample(
-        sample=sample,
-        finder=prior,
-        beam=beam,
-        reasoner=path_reasoner,
-        check_dest=True
+    chk.load_from_index(
+        prior_checkpoint,
+        checkpoint_dir, 'prior',
+        checkpoint_index
     )
-    predicts.append(predict)
-    if predict[0] == 0.0 and predict[1] == 0.0:
-        fails += 1
 
-accuracy.update_state(
-    labels,
-    predicts
-)
-print('prior accuracy: {:.4f}, prior fails: {}'.format(
-    accuracy.result().numpy(),
-    fails
-))
+    chk.load_from_index(
+        likelihood_checkpoint,
+        checkpoint_dir, path_reasoner_name,
+        checkpoint_index
+    )
+
+    labels = []
+    predicts = []
+    accuracy = tf.keras.metrics.CategoricalAccuracy()
+    for sample in test_samples:
+        label = type_to_one_hot(sample['rid'])
+        rel_emb = rel_embs[sample['rid']]
+        labels.append(label)
+
+        predict = predict_sample(
+            sample=sample,
+            finder=prior,
+            beam=beam,
+            reasoner=path_reasoner,
+            check_dest=True
+        )
+        predicts.append(predict)
+
+    accuracy.update_state(
+        labels,
+        predicts
+    )
+    print('chk {} accuracy: {:.4f}'.format(
+        checkpoint_index,
+        accuracy.result().numpy()
+    ))
