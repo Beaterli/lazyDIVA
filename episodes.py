@@ -1,15 +1,16 @@
 import json
 import random
+import sys
 from concurrent.futures import ProcessPoolExecutor
 from time import time
 
 from graph.graph import Graph
 from pathfinder.brute.bfsfinder import BFSFinder
 
-task = '/tv/tv_program/languages'
+task = sys.argv[2]
 episodes_json = '{}.json'.format(task.replace(':', '_').replace('/', '_'))
-db_name = 'fb15k-237.db'
-search_workers = 6
+db_name = '{}.db'.format(sys.argv[1])
+search_workers = 4
 max_path_length = 5
 teacher_path_count = 5
 
