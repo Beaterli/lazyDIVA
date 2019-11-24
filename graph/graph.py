@@ -69,6 +69,18 @@ class Graph(object):
                 neighbors.append(neighbor)
         return neighbors
 
+    def mid_to_id(self, mid):
+        sql = "select eid from entities where entity = '{}'".format('blog_{}'.format(mid))
+        for row in self.conn.execute(sql).fetchall():
+            return row[0]
+        return -1
+
+    def id_to_ent(self, eid):
+        sql = '''select entity from entities where eid = {}'''.format(eid)
+        for row in self.conn.execute(sql).fetchall():
+            return row[0]
+        return None
+
     def vec_of_ent(self, ent_id):
         if self.entEmb[ent_id].size == 1:
             for row in self.conn.execute('''select emb from entities where eid = {}'''.format(ent_id)).fetchall():

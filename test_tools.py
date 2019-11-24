@@ -3,6 +3,7 @@ import tensorflow as tf
 
 from pathreasoner.learn import learn_from_paths
 
+labels = ['entertainment', 'political']
 
 def separate_dest(paths, to_id):
     positives = []
@@ -37,6 +38,7 @@ def predict_sample(sample, finder, beam, reasoner, rel_emb=None, check_dest=Fals
         positives = paths
 
     if len(positives) == 0:
+        print('failed! use zeros')
         return np.zeros(2, dtype='f4')
 
     labels = []
@@ -44,7 +46,12 @@ def predict_sample(sample, finder, beam, reasoner, rel_emb=None, check_dest=Fals
         probs = reasoner.relation_of_path(positive)
         labels.append(probs)
 
-    return tf.reduce_mean(tf.stack(labels), axis=0)
+    return tf.reduce_mean(tf.stack(labels), axis=0), positives
+
+
+def predict_to_label(predict):
+    top_1 = tf.argmax(predict, 0)
+    return labels[top_1]
 
 
 def loss_on_sample(sample, finder, beam, reasoner, label, rel_emb=None):
