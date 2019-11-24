@@ -9,7 +9,14 @@ def index_of(candidates, rel_id, ent_id):
     return -1
 
 
-def pick_top_n(probs, top_n, precision=4):
+def pick_top_n(values, n):
+    # print('deterministic')
+    top_n = values.argsort()[::-1][0:n]
+    return top_n
+
+
+def random_top_n(probs, top_n, precision=4):
+    # print('probalistic')
     action_space = np.arange(len(probs))
 
     if len(probs) <= top_n:

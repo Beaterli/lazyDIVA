@@ -4,7 +4,7 @@ import tensorflow as tf
 from layer.graphsage.aggregate import recursive
 from layer.graphsage.layers import GraphConv, NeighborSampler
 from padding import zeros_front_vec
-from pathfinder.decision import pick_top_n
+from pathfinder.decision import random_top_n, pick_top_n
 from pathfinder.finderstate import FinderState
 
 
@@ -178,7 +178,10 @@ class LSTMFinder(tf.keras.Model):
                 counter += 1
 
             picks = width - len(finished)
-            actions = pick_top_n(flatten_probs, picks)
+            if relation is None:
+                actions = pick_top_n(flatten_probs, picks)
+            else:
+                actions = random_top_n(flatten_probs, picks)
 
             # 根据选取的动作更新路径状态
             for action_chosen in actions:
