@@ -18,7 +18,7 @@ from train_tools import even_types, show_type_distribution
 emb_size = 100
 beam = 5
 max_path_length = 5
-test_count = 320
+test_count = 500
 
 database = 'weibo'
 task = 'event_type'
@@ -26,7 +26,8 @@ task_dir_name = task.replace('/', '_').replace(':', '_')
 reasoner_class = sys.argv[1]
 
 graph = Graph(database + '.db')
-graph.prohibit_relation(task)
+graph.prohibit_relation('entertainment')
+graph.prohibit_relation('political')
 rel_embs = {
     10: graph.vec_of_rel_name('entertainment'),
     12: graph.vec_of_rel_name('political')
@@ -80,7 +81,7 @@ for checkpoint_index in range(1, 11, 1):
             finder=prior,
             beam=beam,
             reasoner=path_reasoner,
-            check_dest=True
+            check_dest=False
         )
         predicts.append(predict)
 

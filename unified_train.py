@@ -21,7 +21,7 @@ from train_tools import train_finder, train_reasoner, teach_finder, rollout_samp
 
 epoch = 20
 emb_size = 100
-rollouts = 5
+rollouts = 10
 print('rollouts: {}'.format(rollouts))
 max_path_length = 5
 samples_count = 100
@@ -168,7 +168,7 @@ for i in range(0, epoch * 3):
         if stage == 0:
             train_posterior(positive + negative, rel_emb)
             # 成功路径过少，需要重新监督学习
-            if len(positive) < 1:
+            if len(positive) < 0:
                 teach_finder(
                     finder=posterior,
                     optimizer=posterior_optimizer,

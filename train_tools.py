@@ -103,9 +103,9 @@ def calc_reward(reasoner, sample, paths, label):
 
     # 获得路径的奖励值
     for path in paths:
-        if path[-1] != sample['to_id']:
-            negative_results.append((search_failure_reward, path))
-            continue
+        # if path[-1] != sample['to_id']:
+        #     negative_results.append((search_failure_reward, path))
+        #     continue
 
         # 需要反转分类损失作为路径搜索奖励
         classify_loss, gradient = learn_from_path(reasoner, path, label)
